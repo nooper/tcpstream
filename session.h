@@ -6,6 +6,7 @@
 typedef struct tcp_session {
 	struct in_addr srcip, destip;
 	uint16_t srcport, destport;
+	int srcstate, deststate;
 	int id;
 } session_t;
 

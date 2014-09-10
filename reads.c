@@ -17,6 +17,7 @@
 
 session_t * getSessionID( session_t *s ) {
 	static void *treeroot = NULL;
+	static int sessionid = 0;
 	printf("%s:%hu -> %s:%hu, id: %u ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport), s->id);
 	printf("&: %p ", s);
 
@@ -24,17 +25,61 @@ session_t * getSessionID( session_t *s ) {
 	if( z == NULL ) {
 		//copy s and call tsearch
 		session_t *newsession = malloc(sizeof(session_t));
+		newsession->id = ++sessionid;
+		newsession->srcstate = TCP_CLOSE;
+		newsession->deststate = TCP_LISTEN;
 		memcpy( newsession, s, sizeof(session_t) );
 		z = tsearch(newsession, &treeroot, compare_session);
-		s = *z;
 	}
 
 	return *z;
 }
 
+void setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
+	int direction;  // 0 = client to server. 1 = server to client
+	direction = 1; // default
+	if( cur->srcip.s_addr == sesh->srcip.s_addr ) {
+		if( cur->srcport == sesh->srcport ) {
+			direction = 0;
+		}
+	}
+
+	if( h->syn == 1 ) {
+		if( h->ack == 0 ) {
+			if ( direction == 0 ) {
+				//connection is being initiated
+				sesh->srcstate =  TCP_SYN_SENT;
+				printf(" syn sent ");
+			}
+		} else {
+			if( direction == 1 ) {
+				// syn ack
+				sesh->deststate = TCP_SYN_RECV;
+				printf(" syn ack ");
+			}
+		}
+	} else {
+		if( h->ack == 1 ) {
+			if( direction == 0 ) {
+				if( sesh->srcstate == TCP_SYN_SENT ) {
+					sesh->srcstate = TCP_ESTABLISHED;
+					printf(" src established ");
+				}
+			} else if( direction == 1 ) {
+				if( sesh->deststate == TCP_SYN_RECV ) {
+					sesh->deststate = TCP_ESTABLISHED;
+					printf(" dest established ");
+				}
+			}
+		}
+	}
+
+
+}
+
+
 int readpcap( pcap_t * in ) {
 
-	int id = 1;
 	// Get link layer type
 	int llheadertype = pcap_datalink(in);
 
@@ -44,7 +89,6 @@ int readpcap( pcap_t * in ) {
 	const u_char *packetdata;
 
 	while( pcap_next_ex( in, &header, &packetdata ) == 1 ) {
-		id += 1;
 		struct iphdr *ipheader;
 		struct sll_header *llhead;
 		switch( llheadertype ) {
@@ -79,13 +123,21 @@ int readpcap( pcap_t * in ) {
 		s.destip.s_addr = ipheader->daddr;
 		s.srcport = tcpheader->source;
 		s.destport = tcpheader->dest;
-		s.id = id;
 
 		// get session struct
 		session_t *sesh = getSessionID( &s );
 		printf("ID: %u ", sesh->id);
 
-		// advance session state
+		setState( &s, sesh, tcpheader );
+		if( sesh->srcstate == TCP_ESTABLISHED && sesh->deststate == TCP_ESTABLISHED ) {
+			void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
+			int tcpdatalen = header->len - ((void*)tcpdata - (void*)packetdata);
+			printf(" len:%d ", tcpdatalen );
+
+		}
+
+		//set state
+
 
 
 
