@@ -11,15 +11,23 @@
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 #include <search.h>
+#include <string.h>
 #include "session.h"
 
 
-session_t * getSessionID( struct tcp_session *s ) {
+session_t * getSessionID( session_t *s ) {
 	static void *treeroot = NULL;
 	printf("%s:%hu -> %s:%hu, id: %u ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport), s->id);
-	
 	printf("&: %p ", s);
-	session_t **z = tsearch(s, &treeroot, compare_session);
+
+	session_t **z = tfind(s, &treeroot, compare_session);
+	if( z == NULL ) {
+		//copy s and call tsearch
+		session_t *newsession = malloc(sizeof(session_t));
+		memcpy( newsession, s, sizeof(session_t) );
+		z = tsearch(newsession, &treeroot, compare_session);
+		s = *z;
+	}
 
 	return *z;
 }
@@ -66,15 +74,15 @@ int readpcap( pcap_t * in ) {
 
 
 		struct tcphdr* tcpheader = (struct tcphdr*)(((unsigned char*)ipheader) + (ipheader->ihl * 4));
-		session_t *s = malloc(sizeof(session_t));
-		s->srcip.s_addr = ipheader->saddr;
-		s->destip.s_addr = ipheader->daddr;
-		s->srcport = tcpheader->source;
-		s->destport = tcpheader->dest;
-		s->id = id;
+		session_t s;
+		s.srcip.s_addr = ipheader->saddr;
+		s.destip.s_addr = ipheader->daddr;
+		s.srcport = tcpheader->source;
+		s.destport = tcpheader->dest;
+		s.id = id;
 
 		// get session struct
-		session_t *sesh = getSessionID( s );
+		session_t *sesh = getSessionID( &s );
 		printf("ID: %u ", sesh->id);
 
 		// advance session state
