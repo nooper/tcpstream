@@ -18,24 +18,23 @@
 session_t * getSessionID( session_t *s ) {
 	static void *treeroot = NULL;
 	static int sessionid = 0;
-	printf("%s:%hu -> %s:%hu, id: %u ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport), s->id);
-	printf("&: %p ", s);
+	//printf("%s:%hu -> %s:%hu ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport));
 
 	session_t **z = tfind(s, &treeroot, compare_session);
 	if( z == NULL ) {
 		//copy s and call tsearch
 		session_t *newsession = malloc(sizeof(session_t));
+		memcpy( newsession, s, sizeof(session_t) );
 		newsession->id = ++sessionid;
 		newsession->srcstate = TCP_CLOSE;
 		newsession->deststate = TCP_LISTEN;
-		memcpy( newsession, s, sizeof(session_t) );
 		z = tsearch(newsession, &treeroot, compare_session);
 	}
 
 	return *z;
 }
 
-void setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
+int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 	int direction;  // 0 = client to server. 1 = server to client
 	direction = 1; // default
 	if( cur->srcip.s_addr == sesh->srcip.s_addr ) {
@@ -44,39 +43,157 @@ void setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 		}
 	}
 
-	if( h->syn == 1 ) {
-		if( h->ack == 0 ) {
-			if ( direction == 0 ) {
-				//connection is being initiated
-				sesh->srcstate =  TCP_SYN_SENT;
-				printf(" syn sent ");
+	switch ( sesh->srcstate ) {
+		case TCP_ESTABLISHED:
+			if( h->fin == 1 ) {
+				if( direction == 0 ) {
+					if( sesh->deststate == TCP_ESTABLISHED ) {
+						sesh->srcstate = TCP_FIN_WAIT1;
+					}
+				} else if ( direction == 1 ) {
+					if( sesh->deststate == TCP_ESTABLISHED ) {
+						sesh->deststate = TCP_FIN_WAIT1;
+					}
+				}
+			} else if( h->ack == 1 ) {
+				if( sesh->deststate == TCP_FIN_WAIT1 ) {
+					sesh->srcstate = TCP_CLOSE_WAIT;
+					sesh->deststate = TCP_FIN_WAIT2; // assuming closing party received this packet
+				}
 			}
-		} else {
-			if( direction == 1 ) {
-				// syn ack
-				sesh->deststate = TCP_SYN_RECV;
-				printf(" syn ack ");
-			}
-		}
-	} else {
-		if( h->ack == 1 ) {
+			break;
+
+		case TCP_FIN_WAIT1:
 			if( direction == 0 ) {
-				if( sesh->srcstate == TCP_SYN_SENT ) {
-					sesh->srcstate = TCP_ESTABLISHED;
-					printf(" src established ");
-				}
-			} else if( direction == 1 ) {
-				if( sesh->deststate == TCP_SYN_RECV ) {
-					sesh->deststate = TCP_ESTABLISHED;
-					printf(" dest established ");
+				if( sesh->deststate == TCP_ESTABLISHED ) {
+					if( h->ack == 1 ) {
+						sesh->deststate = TCP_CLOSE_WAIT;
+						sesh->srcstate = TCP_FIN_WAIT2;
+					}
 				}
 			}
-		}
+			break;
+
+		case TCP_FIN_WAIT2:
+			if( direction == 1 ) {
+				if( h->fin == 1 ) {
+					if( sesh->deststate == TCP_CLOSE_WAIT ) {
+						sesh->deststate = TCP_LAST_ACK;
+					}
+				}
+			} else if( direction == 0 ) {
+				if( h->ack == 1 ) {
+					if( sesh->deststate == TCP_LAST_ACK ) {
+						sesh->deststate = TCP_CLOSE;
+						sesh->srcstate = TCP_TIME_WAIT;
+					}
+				}
+			}
+			break;
+
+		case TCP_CLOSE_WAIT:
+			if( h->fin == 1 ) {
+				if( direction == 0 ) {
+					if( sesh->deststate == TCP_FIN_WAIT2 ) {
+						sesh->srcstate = TCP_LAST_ACK;
+					}
+				}
+			}
+			break;
+
+		case TCP_LAST_ACK:
+			if( h->ack == 1 ) {
+				if( direction == 1) {
+					if( sesh->deststate == TCP_FIN_WAIT2 ) {
+						sesh->deststate = TCP_TIME_WAIT;
+						sesh->srcstate = TCP_CLOSE;
+					}
+				}
+			}
+			break;
+
+
+
+
+		case TCP_CLOSE:
+			if( h->syn == 1 ) {
+				if( direction == 0) {
+					if( h->ack == 0 ) {
+						if( sesh->deststate == TCP_LISTEN ) {
+							// src is initiating a new connection
+							sesh->srcstate = TCP_SYN_SENT;
+						}
+					}
+				}
+			}
+			break;
+		case TCP_SYN_SENT:
+			if( direction == 1) {
+				if( h->syn == 1 ) {
+					if( h->ack == 1 ) {
+						if( sesh->deststate == TCP_LISTEN ) {
+							// server sends back a syn ack
+							sesh->deststate = TCP_SYN_RECV;
+						}
+					}
+				}
+			} else if ( direction == 0 ) {
+				if( h->syn == 0 ) {
+					if( h->ack == 1 ) {
+						if( sesh->deststate == TCP_SYN_RECV ) {
+							// connection is established
+							sesh->srcstate = TCP_ESTABLISHED;
+							sesh->deststate = TCP_ESTABLISHED;
+						}
+					}
+				}
+			}
+			break;
+
+
+		default:
+			printf(" dunno ");
 	}
-
-
+	
+	return direction;
 }
 
+char * getStateString( int state ) {
+	switch( state ) {
+		case TCP_ESTABLISHED:
+			return "ESTABLISHED";
+			break;
+		case TCP_SYN_SENT:
+			return "SYN_SENT";
+			break;
+		case TCP_SYN_RECV:
+			return "SYN_RECV";
+			break;
+		case TCP_FIN_WAIT1:
+			return "FIN_WAIT1";
+			break;
+		case TCP_FIN_WAIT2:
+			return "FIN_WAIT2";
+			break;
+		case TCP_TIME_WAIT:
+			return "TIME_WAIT";
+			break;
+		case TCP_CLOSE:
+			return "CLOSE";
+			break;
+		case TCP_CLOSE_WAIT:
+			return "CLOSE_WAIT";
+			break;
+		case TCP_LAST_ACK:
+			return "LAST_ACK";
+			break;
+		case TCP_LISTEN:
+			return "LISTEN";
+			break;
+		default:
+			return "OH NO!";
+	}
+}
 
 int readpcap( pcap_t * in ) {
 
@@ -126,9 +243,18 @@ int readpcap( pcap_t * in ) {
 
 		// get session struct
 		session_t *sesh = getSessionID( &s );
-		printf("ID: %u ", sesh->id);
 
-		setState( &s, sesh, tcpheader );
+		int direction = setState( &s, sesh, tcpheader );
+		if( direction == 0 ) {
+			printf(" %s:%d -> ", inet_ntoa(src), ntohs(s.srcport));
+			printf("%s:%d ", inet_ntoa(dest), ntohs(s.destport));
+		} else {
+			printf(" %s:%d <- ", inet_ntoa(dest), ntohs(s.destport));
+			printf("%s:%d ", inet_ntoa(src), ntohs(s.srcport));
+		}
+		printf("ID: %u ", sesh->id);
+		printf(" src: %s ", getStateString( sesh->srcstate ) );
+		printf("dest: %s ", getStateString( sesh->deststate ) );
 		if( sesh->srcstate == TCP_ESTABLISHED && sesh->deststate == TCP_ESTABLISHED ) {
 			void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 			int tcpdatalen = header->len - ((void*)tcpdata - (void*)packetdata);
@@ -136,7 +262,6 @@ int readpcap( pcap_t * in ) {
 
 		}
 
-		//set state
 
 
 
