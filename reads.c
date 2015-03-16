@@ -261,7 +261,7 @@ int readpcap( pcap_t * in ) {
 		uint32_t curseq, curack;
 		curseq = ntohl(tcpheader->seq);
 		curack = ntohl(tcpheader->ack_seq);
-		//printf("seq: %u ack: %u \t", curseq, curack);
+		printf("seq: %u ack: %u \t", curseq, curack);
 		//printf("doff %u ", tcpheader->doff);
 
 		// get session struct
@@ -273,14 +273,11 @@ int readpcap( pcap_t * in ) {
 			if( tcpheader->syn == 1 ) {
 				sesh->dest_nextseq = curseq + 1;
 				sesh->src_needackupto = curseq + 1;
-			} else {
-				//sesh->src_nextseq = curack;
 			}
 		} else {
 			if( tcpheader->syn == 1 ) {
 				sesh->dest_needackupto = curseq + 1;
 				sesh->src_nextseq = curseq + 1;
-			} else {
 			}
 		}
 		//printf(" src: %s ", getStateString( sesh->srcstate ) );
@@ -306,8 +303,8 @@ int readpcap( pcap_t * in ) {
 				sesh->src_nextseq += tcpdatalen;
 			}
 			handleData( sesh, tcpdata, tcpdatalen, direction );
-			printf("\n");
 		}
+			printf("\n");
 
 
 	}
