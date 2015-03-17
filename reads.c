@@ -1,17 +1,10 @@
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
 #include <pcap/sll.h>
 #include <pcap/pcap.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
-#include <search.h>
-#include <string.h>
 #include "session.h"
 
 void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen );
@@ -57,12 +50,6 @@ int readpcap( pcap_t * in ) {
 				printf("not tcp\n");
 				continue;
 		}
-
-		struct in_addr src, dest;
-		src.s_addr = ipheader->saddr;
-		dest.s_addr = ipheader->daddr;
-		uint16_t ipid = ntohs(ipheader->id);
-
 
 		session_t s;
 		s.counter = 0;

@@ -3,6 +3,8 @@
 #include <string.h>
 #include <search.h>
 #include <netinet/tcp.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 #include "session.h"
 
 int tcp2disk( session_t* sesh, void* tcpdata, int len, int direction );
@@ -181,17 +183,17 @@ char * getStateString( int state ) {
 			return "OH NO!";
 	}
 }
+
 void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
-	s->srcport = tcpheader->source;
-	s->destport = tcpheader->dest;
 
 	uint32_t curseq, curack;
 	curseq = ntohl(tcpheader->seq);
 	curack = ntohl(tcpheader->ack_seq);
 	printf("seq: %u ack: %u \t", curseq, curack);
-	//printf("doff %u ", tcpheader->doff);
 
 	// get session struct
+	s->srcport = tcpheader->source;
+	s->destport = tcpheader->dest;
 	session_t *sesh = getSessionID( s );
 	sesh->counter++;
 
@@ -207,25 +209,19 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			sesh->src_nextseq = curseq + 1;
 		}
 	}
+
 	//printf(" src: %s ", getStateString( sesh->srcstate ) );
 	//printf("dest: %s ", getStateString( sesh->deststate ) );
 	if( (sesh->srcstate == TCP_ESTABLISHED) || (sesh->deststate == TCP_ESTABLISHED) ) {
-		//printf("%u.%u. %u \t", sesh->id, sesh->counter, ipid);
+		printf("%u.%03u \t", sesh->id, sesh->counter);
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
-		//printf(" len:%d ", tcpdatalen );
 		if( direction == 0 ) {
-			//printf(" %s:%d -> ", inet_ntoa(src), ntohs(s.srcport));
-			//printf("%s:%d \t", inet_ntoa(dest), ntohs(s.destport));
-			printf(" seq diff: %i ", curseq - sesh->dest_nextseq);
-			printf(" ack diff: %i ", sesh->dest_needackupto - curack);
+			printf("--> seq:%05i ack:%05i\t", curseq - sesh->dest_nextseq, sesh->dest_needackupto - curack);
 			sesh->src_needackupto += tcpdatalen;
 			sesh->dest_nextseq += tcpdatalen;
 		} else {
-			//printf(" %s:%d <- ", inet_ntoa(dest), ntohs(s.destport));
-			//printf("%s:%d \t", inet_ntoa(src), ntohs(s.srcport));
-			printf(" seq diff: %i ", curseq - sesh->src_nextseq);
-			printf(" ack diff: %i ", sesh->src_needackupto - curack);
+			printf("<-- seq:%05i ack:%05i\t", curseq - sesh->src_nextseq, sesh->src_needackupto - curack);
 			sesh->dest_needackupto += tcpdatalen;
 			sesh->src_nextseq += tcpdatalen;
 		}
