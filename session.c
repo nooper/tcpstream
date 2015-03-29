@@ -62,8 +62,37 @@ session_t * getSessionID( session_t *s ) {
 		newsession->src.state = TCP_CLOSE;
 		newsession->dest.state = TCP_LISTEN;
 		newsession->src.buf = newsession->dest.buf = NULL;
+		newsession->src.diskout = fopen("srcout", "a");
+		newsession->dest.diskout = fopen("destout", "a");
 		z = tsearch(newsession, &treeroot, compare_session);
 	}
 
 	return *z;
+}
+
+void ll_put(uint32_t seq, int len, void* tcpdata, struct host* dest){
+	struct ll* node = (struct ll*)malloc(sizeof(struct ll));
+	node->next = node->prev = NULL;
+	node->seq = seq;
+	node->len = len;
+	node->tcpdata = malloc(len);
+	memcpy(node->tcpdata, tcpdata, len);
+	if( dest->buf == NULL ) {
+		dest->buf = node;
+	} else {
+		insque( node, dest->buf );
+	}
+}
+
+struct ll* ll_get(uint32_t seq, struct host* dest) {
+	struct ll* buffer = dest->buf;
+	while( buffer != NULL ) {
+		if(buffer->seq == seq) {
+			remque(buffer);
+			return buffer;
+		} else {
+			buffer = buffer->next;
+		}
+	}
+	return buffer;
 }

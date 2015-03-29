@@ -7,7 +7,7 @@
 #include <arpa/inet.h>
 #include "session.h"
 
-int tcp2disk( session_t* sesh, void* tcpdata, int len, int direction );
+int tcp2disk( struct host* src, void* tcpdata, int len );
 
 int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 	int direction;  // 0 = client to server. 1 = server to client
@@ -166,6 +166,29 @@ char * getStateString( int state ) {
 	}
 }
 
+void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpdata, int len ) {
+	if( curseq == src->seq ) {
+		// write this packet to disk, or something
+		src->seq += len;
+		tcp2disk( src, tcpdata, len );
+		printf(" written %i ", len);
+		// check if any buffers need to be processed
+		struct ll *buf = ll_get( src->seq, dest );
+		if(buf != NULL) {
+			src->seq += buf->len;
+			printf("unbuf!");
+		}
+	} else if ( curseq > src->seq ) {
+		// packet is early. buffer it
+		ll_put( curseq, len, tcpdata, dest );
+		printf(" buffered ");
+	} else {
+		// else if curseq < src->seq, ignore the packet because its a retransmission and i already have the data
+		// rewrite this to check if the data length is high enough to include data i don't have.
+		printf(" ignored ");
+	}
+}
+
 void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 
 	uint32_t curseq, curack;
@@ -201,22 +224,9 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		}
 		if( tcpdatalen > 0 ) {
 			if( direction == 0 ) {
-				if( curseq == sesh->src.seq ) {
-					sesh->src.seq += tcpdatalen;
-					// if stored data, process it
-				} else {
-					printf(" %d diff ", curseq - sesh->src.seq);
-					ll_put( curseq, tcpdatalen, tcpdata, sesh->dest.buf );
-				}
+				bufferTCP( curseq, &(sesh->src), &(sesh->dest), tcpdata, tcpdatalen );
 			} else {
-				if( curseq == sesh->dest.seq ) {
-					sesh->dest.seq += tcpdatalen;
-					// if stored data, process it
-
-				} else {
-					printf(" %d diff ", curseq - sesh->dest.seq);
-					ll_put( curseq, tcpdatalen, tcpdata, sesh->src.buf );
-				}
+				bufferTCP( curseq, &(sesh->dest), &(sesh->src), tcpdata, tcpdatalen );
 			}
 		}
 	}

@@ -1,4 +1,4 @@
-reads: session.o reads.c diskwriter.o tcp.o ll.o
+reads: session.o reads.c diskwriter.o tcp.o
 	gcc -g -Werror -lpcap reads.c session.o diskwriter.o tcp.o ll.o -o reads
 
 tcp.o: tcp.c diskwriter.o session.o
@@ -9,6 +9,3 @@ session.o: session.c session.h
 
 diskwriter.o: diskwriter.c
 	gcc -g -c diskwriter.c
-
-ll.o: ll.c
-	gcc -g -c ll.c
