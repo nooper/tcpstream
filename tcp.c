@@ -9,29 +9,11 @@
 
 int tcp2disk( session_t* sesh, void* tcpdata, int len, int direction );
 
-session_t * getSessionID( session_t *s ) {
-	static void *treeroot = NULL;
-	static int sessionid = 0;
-	//printf("%s:%hu -> %s:%hu ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport));
-
-	session_t **z = tfind(s, &treeroot, compare_session);
-	if( z == NULL ) {
-		//copy s and call tsearch
-		session_t *newsession = malloc(sizeof(session_t));
-		memcpy( newsession, s, sizeof(session_t) );
-		newsession->id = ++sessionid;
-		newsession->srcstate = TCP_CLOSE;
-		newsession->deststate = TCP_LISTEN;
-		z = tsearch(newsession, &treeroot, compare_session);
-	}
-
-	return *z;
-}
 int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 	int direction;  // 0 = client to server. 1 = server to client
 	direction = 1; // default
-	if( cur->srcip.s_addr == sesh->srcip.s_addr ) {
-		if( cur->srcport == sesh->srcport ) {
+	if( cur->src.ip.s_addr == sesh->src.ip.s_addr ) {
+		if( cur->src.port == sesh->src.port ) {
 			direction = 0;
 		}
 	}
@@ -42,24 +24,24 @@ int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 	// It refers to the source and destination of the first packet. 'src' is the initiator of the tcp session at the beginning.
 	
 
-	switch ( sesh->srcstate ) {
+	switch ( sesh->src.state ) {
 		case TCP_ESTABLISHED:
 			if( direction == 0 ) {
 				if( h->fin == 1 ) {
-					if( sesh->deststate == TCP_ESTABLISHED ) {
-						sesh->srcstate = TCP_FIN_WAIT1;
-					} else if( sesh->deststate == TCP_FIN_WAIT1 ) {
+					if( sesh->dest.state == TCP_ESTABLISHED ) {
+						sesh->src.state = TCP_FIN_WAIT1;
+					} else if( sesh->dest.state == TCP_FIN_WAIT1 ) {
 						if( h->ack == 0 ) {
-							sesh->srcstate = TCP_CLOSE_WAIT;
+							sesh->src.state = TCP_CLOSE_WAIT;
 						} else if( h->ack == 1 ) {
-							sesh->srcstate = TCP_LAST_ACK;
+							sesh->src.state = TCP_LAST_ACK;
 						}
 					}
 				}
 			} else {
-				if( sesh->deststate == TCP_ESTABLISHED ) {
+				if( sesh->dest.state == TCP_ESTABLISHED ) {
 					if( h->fin == 1 ) {
-						sesh->deststate = TCP_FIN_WAIT1;
+						sesh->dest.state = TCP_FIN_WAIT1;
 					}
 				}
 			}
@@ -68,19 +50,19 @@ int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 		case TCP_FIN_WAIT1:
 			if( direction == 0 ) {
 				if( h->ack == 1 ) {
-					if( sesh->deststate == TCP_LAST_ACK ) {
-						sesh->srcstate = TCP_TIME_WAIT; // done
-						sesh->deststate = TCP_CLOSE; // the only violation of rule 1 because there will never be a response to this packet
+					if( sesh->dest.state == TCP_LAST_ACK ) {
+						sesh->src.state = TCP_TIME_WAIT; // done
+						sesh->dest.state = TCP_CLOSE; // the only violation of rule 1 because there will never be a response to this packet
 					}
 				}
 						
 			} else {
-				if( sesh->deststate == TCP_ESTABLISHED ) {
+				if( sesh->dest.state == TCP_ESTABLISHED ) {
 					if( h->ack == 1 ) {
 						if( h->fin == 0 ) {
-							sesh->deststate = TCP_CLOSE_WAIT;
+							sesh->dest.state = TCP_CLOSE_WAIT;
 						} else if( h->fin == 1 ) {
-							sesh->deststate = TCP_LAST_ACK;
+							sesh->dest.state = TCP_LAST_ACK;
 						}
 					}
 				}
@@ -102,10 +84,10 @@ int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 		case TCP_LAST_ACK:
 			if( direction == 0 ) {
 			} else {
-				if( sesh->deststate == TCP_FIN_WAIT1 ) {
+				if( sesh->dest.state == TCP_FIN_WAIT1 ) {
 					if( h->ack == 1 ) {
-						sesh->srcstate = TCP_CLOSE;
-						sesh->deststate = TCP_TIME_WAIT;
+						sesh->src.state = TCP_CLOSE;
+						sesh->dest.state = TCP_TIME_WAIT;
 					}
 				}
 			}
@@ -116,8 +98,8 @@ int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 		case TCP_CLOSE:
 			if( direction == 0) {
 				if( h->syn == 1 && h->ack == 0) {
-					if( sesh->deststate == TCP_LISTEN ) {
-						sesh->srcstate = TCP_SYN_SENT;
+					if( sesh->dest.state == TCP_LISTEN ) {
+						sesh->src.state = TCP_SYN_SENT;
 					}
 				}
 			}
@@ -126,15 +108,15 @@ int setState( session_t *cur, session_t *sesh, struct tcphdr *h ) {
 		case TCP_SYN_SENT:
 			if( direction == 1) {
 				if( h->syn == 1 && h->ack == 1 ) {
-					if( sesh->deststate == TCP_LISTEN ) {
-						sesh->deststate = TCP_SYN_RECV;
+					if( sesh->dest.state == TCP_LISTEN ) {
+						sesh->dest.state = TCP_SYN_RECV;
 					}
 				}
 			} else if ( direction == 0 ) {
 				if( h->syn == 0 && h->ack == 1 ) {
-					if( sesh->deststate == TCP_SYN_RECV ) {
-						sesh->srcstate = TCP_ESTABLISHED;
-						sesh->deststate = TCP_ESTABLISHED;
+					if( sesh->dest.state == TCP_SYN_RECV ) {
+						sesh->src.state = TCP_ESTABLISHED;
+						sesh->dest.state = TCP_ESTABLISHED;
 					}
 				}
 			}
@@ -192,40 +174,51 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	printf("seq: %u ack: %u \t", curseq, curack);
 
 	// get session struct
-	s->srcport = tcpheader->source;
-	s->destport = tcpheader->dest;
+	s->src.port = tcpheader->source;
+	s->dest.port = tcpheader->dest;
 	session_t *sesh = getSessionID( s );
 	sesh->counter++;
 
 	int direction = setState( s, sesh, tcpheader );
-	if( direction == 0 ) {
-		if( tcpheader->syn == 1 ) {
-			sesh->dest_nextseq = curseq + 1;
-			sesh->src_needackupto = curseq + 1;
-		}
-	} else {
-		if( tcpheader->syn == 1 ) {
-			sesh->dest_needackupto = curseq + 1;
-			sesh->src_nextseq = curseq + 1;
+	if( tcpheader->syn == 1) {
+		if( direction == 0 ) {
+			sesh->src.seq = curseq + 1;
+		} else {
+			sesh->dest.seq = curseq + 1;
 		}
 	}
 
-	//printf(" src: %s ", getStateString( sesh->srcstate ) );
-	//printf("dest: %s ", getStateString( sesh->deststate ) );
-	if( (sesh->srcstate == TCP_ESTABLISHED) || (sesh->deststate == TCP_ESTABLISHED) ) {
+	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
 		printf("%u.%03u \t", sesh->id, sesh->counter);
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
+		printf(" len: %04d  \t", tcpdatalen );
+		//tcp2disk( sesh, tcpdata, tcpdatalen, direction );
 		if( direction == 0 ) {
-			printf("--> seq:%05i ack:%05i\t", curseq - sesh->dest_nextseq, sesh->dest_needackupto - curack);
-			sesh->src_needackupto += tcpdatalen;
-			sesh->dest_nextseq += tcpdatalen;
+			printf(" --> ");
 		} else {
-			printf("<-- seq:%05i ack:%05i\t", curseq - sesh->src_nextseq, sesh->src_needackupto - curack);
-			sesh->dest_needackupto += tcpdatalen;
-			sesh->src_nextseq += tcpdatalen;
+			printf(" <-- ");
 		}
-		tcp2disk( sesh, tcpdata, tcpdatalen, direction );
+		if( tcpdatalen > 0 ) {
+			if( direction == 0 ) {
+				if( curseq == sesh->src.seq ) {
+					sesh->src.seq += tcpdatalen;
+					// if stored data, process it
+				} else {
+					printf(" %d diff ", curseq - sesh->src.seq);
+					ll_put( curseq, tcpdatalen, tcpdata, sesh->dest.buf );
+				}
+			} else {
+				if( curseq == sesh->dest.seq ) {
+					sesh->dest.seq += tcpdatalen;
+					// if stored data, process it
+
+				} else {
+					printf(" %d diff ", curseq - sesh->dest.seq);
+					ll_put( curseq, tcpdatalen, tcpdata, sesh->src.buf );
+				}
+			}
+		}
 	}
 	printf("\n");
 }

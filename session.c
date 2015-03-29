@@ -1,3 +1,7 @@
+#include <stdlib.h>
+#include <netinet/tcp.h>
+#include <search.h>
+#include <string.h>
 #include "session.h"
 
 int compare_host ( struct in_addr ipa, struct in_addr ipb, uint16_t porta, uint16_t portb ) {
@@ -19,9 +23,9 @@ int compare_session( const void *a, const void *b ) {
 
 	unsigned int temp = 0;
 
-	temp = compare_host( x->srcip, y->srcip, x->srcport, y->srcport );
+	temp = compare_host( x->src.ip, y->src.ip, x->src.port, y->src.port );
 	if( temp == 0 ) {
-		temp = compare_host( x->destip, y->destip, x->destport, y->destport );
+		temp = compare_host( x->dest.ip, y->dest.ip, x->dest.port, y->dest.port );
 		if( temp == 0 ) {
 			// match!
 			return temp;
@@ -29,9 +33,9 @@ int compare_session( const void *a, const void *b ) {
 	} 
 
 	// no match. flip hosts and check again
-	temp = compare_host( x->srcip, y->destip, x->srcport, y->destport );
+	temp = compare_host( x->src.ip, y->dest.ip, x->src.port, y->dest.port );
 	if( temp == 0 ) {
-		temp = compare_host( x->destip, y->srcip, x->destport, y->srcport );
+		temp = compare_host( x->dest.ip, y->src.ip, x->dest.port, y->src.port );
 		if( temp == 0 ) {
 			// match!
 			return temp;
@@ -41,4 +45,25 @@ int compare_session( const void *a, const void *b ) {
 	// no match
 	return temp;
 
+}
+
+
+session_t * getSessionID( session_t *s ) {
+	static void *treeroot = NULL;
+	static int sessionid = 0;
+	//printf("%s:%hu -> %s:%hu ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport));
+
+	session_t **z = tfind(s, &treeroot, compare_session);
+	if( z == NULL ) {
+		//copy s and call tsearch
+		session_t *newsession = malloc(sizeof(session_t));
+		memcpy( newsession, s, sizeof(session_t) );
+		newsession->id = ++sessionid;
+		newsession->src.state = TCP_CLOSE;
+		newsession->dest.state = TCP_LISTEN;
+		newsession->src.buf = newsession->dest.buf = NULL;
+		z = tsearch(newsession, &treeroot, compare_session);
+	}
+
+	return *z;
 }

@@ -53,8 +53,8 @@ int readpcap( pcap_t * in ) {
 
 		session_t s;
 		s.counter = 0;
-		s.srcip.s_addr = ipheader->saddr;
-		s.destip.s_addr = ipheader->daddr;
+		s.src.ip.s_addr = ipheader->saddr;
+		s.dest.ip.s_addr = ipheader->daddr;
 
 		struct tcphdr* tcpheader = (struct tcphdr*)(((unsigned char*)ipheader) + (ipheader->ihl * 4));
 		uint16_t tcplen = ntohs(ipheader->tot_len) - (ipheader->ihl * 4);
