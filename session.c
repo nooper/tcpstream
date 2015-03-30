@@ -62,8 +62,6 @@ session_t * getSessionID( session_t *s ) {
 		newsession->src.state = TCP_CLOSE;
 		newsession->dest.state = TCP_LISTEN;
 		newsession->src.buf = newsession->dest.buf = NULL;
-		newsession->src.diskout = fopen("srcout", "a");
-		newsession->dest.diskout = fopen("destout", "a");
 		z = tsearch(newsession, &treeroot, compare_session);
 	}
 
@@ -89,6 +87,9 @@ struct ll* ll_get(uint32_t seq, struct host* dest) {
 	while( buffer != NULL ) {
 		if(buffer->seq == seq) {
 			remque(buffer);
+			if( buffer->prev == NULL ) {
+				dest->buf = NULL;
+			}
 			return buffer;
 		} else {
 			buffer = buffer->next;

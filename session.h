@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <netinet/ip.h>
 #include <stdio.h>
-#include "ll.h"
 
 struct ll {
 	struct ll* next;

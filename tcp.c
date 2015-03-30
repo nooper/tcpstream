@@ -173,9 +173,12 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 		tcp2disk( src, tcpdata, len );
 		printf(" written %i ", len);
 		// check if any buffers need to be processed
-		struct ll *buf = ll_get( src->seq, dest );
-		if(buf != NULL) {
+		struct ll *buf;
+		while(buf = ll_get(src->seq, dest)) {
+			tcp2disk( src, buf->tcpdata, buf->len );
 			src->seq += buf->len;
+			free(buf->tcpdata);
+			free(buf);
 			printf("unbuf!");
 		}
 	} else if ( curseq > src->seq ) {
@@ -204,10 +207,15 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 
 	int direction = setState( s, sesh, tcpheader );
 	if( tcpheader->syn == 1) {
+		static char filename[20];
 		if( direction == 0 ) {
 			sesh->src.seq = curseq + 1;
+			snprintf(filename, 20, "%d.%s", sesh->id, "out");
+			sesh->src.diskout = fopen(filename, "a");
 		} else {
 			sesh->dest.seq = curseq + 1;
+			snprintf(filename, 20, "%d.%s", sesh->id, "in");
+			sesh->dest.diskout = fopen(filename, "a");
 		}
 	}
 

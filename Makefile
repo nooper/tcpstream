@@ -1,7 +1,7 @@
 reads: session.o reads.c diskwriter.o tcp.o
-	gcc -g -Werror -lpcap reads.c session.o diskwriter.o tcp.o ll.o -o reads
+	gcc -g -Werror -lpcap reads.c session.o diskwriter.o tcp.o -o reads
 
-tcp.o: tcp.c diskwriter.o session.o
+tcp.o: tcp.c
 	gcc -g -c tcp.c
 
 session.o: session.c session.h
