@@ -219,6 +219,8 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		}
 	}
 
+        //printf(" src: %s ", getStateString( sesh->src.state ) );
+	//printf("dest: %s ", getStateString( sesh->dest.state ) );
 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
 		printf("%u.%03u \t", sesh->id, sesh->counter);
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
@@ -236,6 +238,16 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			} else {
 				bufferTCP( curseq, &(sesh->dest), &(sesh->src), tcpdata, tcpdatalen );
 			}
+		}
+	}
+
+	// on FIN, close files, free(sesh)
+	if( tcpheader->fin == 1 ) {
+		printf(" fin ");
+		if( direction == 0 ) {
+			fclose(sesh->src.diskout);
+		} else {
+			fclose(sesh->dest.diskout);
 		}
 	}
 	printf("\n");
