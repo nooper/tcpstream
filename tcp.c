@@ -217,11 +217,9 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			snprintf(filename, 20, "%d.%s", sesh->id, "in");
 			sesh->dest.diskout = fopen(filename, "a");
 		}
-	}
-
-        //printf(" src: %s ", getStateString( sesh->src.state ) );
-	//printf("dest: %s ", getStateString( sesh->dest.state ) );
-	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
+	} else 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
+		//printf(" src: %s ", getStateString( sesh->src.state ) );
+		//printf("dest: %s ", getStateString( sesh->dest.state ) );
 		printf("%u.%03u \t", sesh->id, sesh->counter);
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
@@ -239,15 +237,17 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 				bufferTCP( curseq, &(sesh->dest), &(sesh->src), tcpdata, tcpdatalen );
 			}
 		}
-	}
-
+	} else 	if( tcpheader->fin == 1 ) {
 	// on FIN, close files, free(sesh)
-	if( tcpheader->fin == 1 ) {
 		printf(" fin ");
+		struct host* temp;
 		if( direction == 0 ) {
-			fclose(sesh->src.diskout);
+			temp = &(sesh->src);
 		} else {
-			fclose(sesh->dest.diskout);
+			temp = &(sesh->dest);
+		}
+		if( temp->diskout != NULL ) {
+			fclose(temp->diskout);
 		}
 	}
 	printf("\n");

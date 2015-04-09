@@ -22,8 +22,9 @@ int readpcap( pcap_t * in ) {
 	while( pcap_next_ex( in, &header, &packetdata ) == 1 ) {
 		struct iphdr *ipheader;
 		struct sll_header *llhead;
+		struct ether_header *etherhead;
 		switch( llheadertype ) {
-			case DLT_LINUX_SLL:
+			case DLT_LINUX_SLL: //openvz container
 				llhead = (struct sll_header*)packetdata;
 				if( ntohs(llhead->sll_protocol) == ETH_P_IP ) {
 					ipheader = (struct iphdr*) (packetdata + sizeof(struct sll_header));
@@ -31,7 +32,18 @@ int readpcap( pcap_t * in ) {
 					continue;
 				}
 				break;
+
+			case DLT_EN10MB: //ethernet
+				etherhead = (struct ether_header*)packetdata;
+				if( ntohs(etherhead->ether_type) == ETHERTYPE_IP ) {
+					ipheader = (struct iphdr*) (packetdata + sizeof(struct ether_header));
+				} else {
+					printf("not IP\n");
+				}
+				break;
+
 			default:
+				printf("L2 header %d\n", (int)llheadertype);
 				continue;
 		}
 
