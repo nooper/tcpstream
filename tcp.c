@@ -238,16 +238,16 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			}
 		}
 	} else 	if( tcpheader->fin == 1 ) {
-	// on FIN, close files, free(sesh)
+		// on FIN, close files, free(sesh)
 		printf(" fin ");
-		struct host* temp;
+		struct host* finhost;
 		if( direction == 0 ) {
-			temp = &(sesh->src);
+			finhost = &(sesh->src);
 		} else {
-			temp = &(sesh->dest);
+			finhost = &(sesh->dest);
 		}
-		if( temp->diskout != NULL ) {
-			fclose(temp->diskout);
+		if( finhost->diskout != NULL ) {
+			fclose(finhost->diskout);
 		}
 	}
 	printf("\n");

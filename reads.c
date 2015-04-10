@@ -7,6 +7,8 @@
 #include <netinet/tcp.h>
 #include "session.h"
 
+/* find *.{in,out} -size 0 -exec rm {} \;   */
+
 void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen );
 
 int readpcap( pcap_t * in ) {
@@ -39,6 +41,7 @@ int readpcap( pcap_t * in ) {
 					ipheader = (struct iphdr*) (packetdata + sizeof(struct ether_header));
 				} else {
 					printf("not IP\n");
+					continue;
 				}
 				break;
 
