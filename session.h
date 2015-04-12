@@ -17,6 +17,7 @@ struct host {
 	uint32_t seq;
 	struct ll *buf;
 	FILE* diskout;
+	int bufcount;
 };
 
 

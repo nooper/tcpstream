@@ -40,7 +40,6 @@ int readpcap( pcap_t * in ) {
 				if( ntohs(etherhead->ether_type) == ETHERTYPE_IP ) {
 					ipheader = (struct iphdr*) (packetdata + sizeof(struct ether_header));
 				} else {
-					printf("not IP\n");
 					continue;
 				}
 				break;
@@ -54,7 +53,6 @@ int readpcap( pcap_t * in ) {
 			case 4:
 				break;
 			default:
-				printf("not ipv4\n");
 				continue;
 		}
 
@@ -62,7 +60,6 @@ int readpcap( pcap_t * in ) {
 			case IPPROTO_TCP:
 				break;
 			default:
-				printf("not tcp\n");
 				continue;
 		}
 

@@ -171,19 +171,21 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 		// write this packet to disk, or something
 		src->seq += len;
 		tcp2disk( src, tcpdata, len );
-		printf(" written %i ", len);
+		printf(" written %i (%d)", len, dest->bufcount);
 		// check if any buffers need to be processed
 		struct ll *buf;
 		while(buf = ll_get(src->seq, dest)) {
+			dest->bufcount--;
 			tcp2disk( src, buf->tcpdata, buf->len );
 			src->seq += buf->len;
 			free(buf->tcpdata);
 			free(buf);
-			printf("unbuf!");
+			printf("unbuf %d", buf->len);
 		}
 	} else if ( curseq > src->seq ) {
 		// packet is early. buffer it
 		ll_put( curseq, len, tcpdata, dest );
+		dest->bufcount++;
 		printf(" buffered ");
 	} else {
 		// else if curseq < src->seq, ignore the packet because its a retransmission and i already have the data
