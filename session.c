@@ -27,8 +27,9 @@ static void action(const void *nodep, const VISIT which, const int depth)
 int compare_host ( struct in_addr ipa, struct in_addr ipb, uint16_t porta, uint16_t portb ) {
 	int32_t ip1, ip2;
 	uint16_t port1, port2;
-	ip1 = (int32_t) ipa.s_addr;
-	ip2 = (int32_t) ipb.s_addr;
+
+	ip1 = (int32_t) htonl(ipa.s_addr);
+	ip2 = (int32_t) htonl(ipb.s_addr);
 	port1 = htons(porta);
 	port2 = htons(portb);
 
