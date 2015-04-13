@@ -207,7 +207,12 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	session_t *sesh = getSessionID( s );
 	sesh->counter++;
 
+	printf("%s:%hu -> ", inet_ntoa(s->src.ip), ntohs(s->src.port));
+	printf("%s:%hu ",inet_ntoa(s->dest.ip), ntohs(s->dest.port));
+
 	int direction = setState( s, sesh, tcpheader );
+	printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
+	printf("dest: %s ", getStateString( sesh->dest.state ) );
 	if( tcpheader->syn == 1) {
 		static char filename[20];
 		if( direction == 0 ) {
@@ -220,8 +225,6 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			sesh->dest.diskout = fopen(filename, "a");
 		}
 	} else 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
-		//printf(" src: %s ", getStateString( sesh->src.state ) );
-		//printf("dest: %s ", getStateString( sesh->dest.state ) );
 		printf("%u.%03u \t", sesh->id, sesh->counter);
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
@@ -250,7 +253,10 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		}
 		if( finhost->diskout != NULL ) {
 			fclose(finhost->diskout);
+			printf("CLOSE!");
 		}
+	} else {
+		printf(" BAD ");
 	}
 	printf("\n");
 }

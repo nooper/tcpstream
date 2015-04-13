@@ -4,15 +4,46 @@
 #include <string.h>
 #include "session.h"
 
+static void action(const void *nodep, const VISIT which, const int depth)
+{
+	session_t *datap;
+
+	switch (which) {
+		case preorder:
+			break;
+		case postorder:
+			datap = *(session_t **) nodep;
+			printf(" [id:%d depth:%d] ", datap->id, depth);
+			break;
+		case endorder:
+			break;
+		case leaf:
+			datap = *(session_t **) nodep;
+			printf(" [id:%d depth:%d] ", datap->id, depth);
+			break;
+	}
+}
+
 int compare_host ( struct in_addr ipa, struct in_addr ipb, uint16_t porta, uint16_t portb ) {
-	if( ipa.s_addr == ipb.s_addr ) {
-		if( porta == portb ) {
+	int32_t ip1, ip2;
+	uint16_t port1, port2;
+	ip1 = (int32_t) ipa.s_addr;
+	ip2 = (int32_t) ipb.s_addr;
+	port1 = htons(porta);
+	port2 = htons(portb);
+
+	if( ip1 < ip2 ) {
+		return -1;
+	} else if( ip1 == ip2 ) {
+		if( port1 < port2 ) {
+			return -1;
+		} else if( port1 == port2 ) {
 			return 0;
 		} else {
-			return porta - portb;
+			return 1;
 		}
 	} else {
-		return ipa.s_addr - ipb.s_addr;
+		return 1;
 	}
 }
 
@@ -21,7 +52,7 @@ int compare_session( const void *a, const void *b ) {
 	session_t *x = (session_t*) a;
 	session_t *y = (session_t*) b;
 
-	unsigned int temp = 0;
+	int temp = 0;
 
 	temp = compare_host( x->src.ip, y->src.ip, x->src.port, y->src.port );
 	if( temp == 0 ) {
@@ -43,6 +74,7 @@ int compare_session( const void *a, const void *b ) {
 	}
 
 	// no match
+	printf(" not %d ", y->id);
 	return temp;
 
 }
@@ -56,6 +88,7 @@ session_t * getSessionID( session_t *s ) {
 	session_t **z = tfind(s, &treeroot, compare_session);
 	if( z == NULL ) {
 		//copy s and call tsearch
+		//twalk(treeroot, action);
 		session_t *newsession = malloc(sizeof(session_t));
 		memcpy( newsession, s, sizeof(session_t) );
 		newsession->id = ++sessionid;
