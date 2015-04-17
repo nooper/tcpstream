@@ -166,18 +166,23 @@ char * getStateString( int state ) {
 	}
 }
 
+void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
+	/* assumes curseq is in provided buffer */
+	int offset = src->seq - bufseq; //fix for 32 bit wraparound
+	int usefulLen = buflen - offset;
+	tcp2disk( src, buf + offset, usefulLen );
+	printf(" written %i ", usefulLen);
+	src->seq += usefulLen;
+}
+
 void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpdata, int len ) {
-	if( curseq == src->seq ) {
-		// write this packet to disk, or something
-		src->seq += len;
-		tcp2disk( src, tcpdata, len );
-		printf(" written %i (%d)", len, dest->bufcount);
-		// check if any buffers need to be processed
+	if( isBetween32(src->seq, curseq, len) )
+	{
+		writeBuffer( tcpdata, len, curseq, src );
 		struct ll *buf;
 		while(buf = ll_get(src->seq, dest)) {
+			writeBuffer( buf->tcpdata, buf->len, buf->seq, src );
 			dest->bufcount--;
-			tcp2disk( src, buf->tcpdata, buf->len );
-			src->seq += buf->len;
 			free(buf->tcpdata);
 			free(buf);
 			printf("unbuf %d", buf->len);
@@ -188,9 +193,7 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 		dest->bufcount++;
 		printf(" buffered ");
 	} else {
-		// else if curseq < src->seq, ignore the packet because its a retransmission and i already have the data
-		// rewrite this to check if the data length is high enough to include data i don't have.
-		printf(" ignored ");
+		printf(" Not handled ");
 	}
 }
 
