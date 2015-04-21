@@ -168,7 +168,7 @@ char * getStateString( int state ) {
 
 void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 	/* assumes curseq is in provided buffer */
-	int offset = src->seq - bufseq; //fix for 32 bit wraparound
+	int offset = src->seq - bufseq; //rewrite this for 32 bit wraparound
 	int usefulLen = buflen - offset;
 	tcp2disk( src, buf + offset, usefulLen );
 	printf(" written %i ", usefulLen);

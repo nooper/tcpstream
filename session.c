@@ -4,26 +4,6 @@
 #include <string.h>
 #include "session.h"
 
-static void action(const void *nodep, const VISIT which, const int depth)
-{
-	session_t *datap;
-
-	switch (which) {
-		case preorder:
-			break;
-		case postorder:
-			datap = *(session_t **) nodep;
-			printf(" [id:%d depth:%d] ", datap->id, depth);
-			break;
-		case endorder:
-			break;
-		case leaf:
-			datap = *(session_t **) nodep;
-			printf(" [id:%d depth:%d] ", datap->id, depth);
-			break;
-	}
-}
-
 int compare_host ( struct in_addr ipa, struct in_addr ipb, uint16_t porta, uint16_t portb ) {
 	int32_t ip1, ip2;
 	uint16_t port1, port2;
@@ -80,28 +60,34 @@ int compare_session( const void *a, const void *b ) {
 
 }
 
-
-session_t * getSessionID( session_t *s ) {
-	static void *treeroot = NULL;
+session_t * getSessionID( session_t *s) {
+	static session_t *sessionList = NULL;
 	static int sessionid = 0;
-	//printf("%s:%hu -> %s:%hu ", inet_ntoa(s->srcip), ntohs(s->srcport), inet_ntoa(s->destip), ntohs(s->destport));
-
-	session_t **z = tfind(s, &treeroot, compare_session);
-	if( z == NULL ) {
-		//copy s and call tsearch
-		//twalk(treeroot, action);
-		session_t *newsession = malloc(sizeof(session_t));
-		memcpy( newsession, s, sizeof(session_t) );
-		newsession->id = ++sessionid;
-		newsession->src.state = TCP_CLOSE;
-		newsession->dest.state = TCP_LISTEN;
-		newsession->src.buf = newsession->dest.buf = NULL;
-		newsession->src.diskout = newsession->dest.diskout = NULL;
-		newsession->src.bufcount = newsession->dest.bufcount = 0;
-		z = tsearch(newsession, &treeroot, compare_session);
+	session_t *iterator = sessionList;
+	while(iterator != NULL) {
+		//search and return
+		if( compare_session(s, iterator) == 0 ) {
+			return iterator;
+		} else {
+			iterator = iterator->next;
+		}
 	}
-
-	return *z;
+	//insert
+	session_t *newsession = malloc(sizeof(session_t));
+	memcpy( newsession, s, sizeof(session_t) );
+	newsession->next = newsession->prev = NULL;
+	newsession->id = ++sessionid;
+	newsession->src.state = TCP_CLOSE;
+	newsession->dest.state = TCP_LISTEN;
+	newsession->src.buf = newsession->dest.buf = NULL;
+	newsession->src.diskout = newsession->dest.diskout = NULL;
+	newsession->src.bufcount = newsession->dest.bufcount = 0;
+	if( sessionList == NULL ) {
+		sessionList = newsession;
+	} else {
+		insque( newsession, sessionList );
+	}
+	return newsession;
 }
 
 int isBetween32(uint64_t num, uint64_t from, uint64_t len) {

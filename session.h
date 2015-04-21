@@ -22,6 +22,8 @@ struct host {
 
 
 typedef struct tcp_session {
+	struct tcp_session* next;
+	struct tcp_session* prev;
 	int id, counter;
 	struct host src, dest;
 } session_t;
