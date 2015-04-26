@@ -185,7 +185,7 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 			dest->bufcount--;
 			free(buf->tcpdata);
 			free(buf);
-			printf("unbuf %d", buf->len);
+			//printf("unbuf %d", buf->len);
 		}
 	} else if ( curseq > src->seq ) {
 		// packet is early. buffer it
@@ -193,7 +193,7 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 		dest->bufcount++;
 		printf(" buffered ");
 	} else {
-		printf(" Not handled ");
+		printf(" ignored ");
 	}
 }
 
@@ -210,12 +210,12 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	session_t *sesh = getSessionID( s );
 	sesh->counter++;
 
-	printf("%s:%hu -> ", inet_ntoa(s->src.ip), ntohs(s->src.port));
-	printf("%s:%hu ",inet_ntoa(s->dest.ip), ntohs(s->dest.port));
+	//printf("%s:%hu -> ", inet_ntoa(s->src.ip), ntohs(s->src.port));
+	//printf("%s:%hu ",inet_ntoa(s->dest.ip), ntohs(s->dest.port));
 
 	int direction = setState( s, sesh, tcpheader );
-	printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
-	printf("dest: %s ", getStateString( sesh->dest.state ) );
+	//printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
+	//printf("dest: %s ", getStateString( sesh->dest.state ) );
 	if( tcpheader->syn == 1) {
 		static char filename[20];
 		if( direction == 0 ) {

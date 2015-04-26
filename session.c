@@ -55,12 +55,11 @@ int compare_session( const void *a, const void *b ) {
 	}
 
 	// no match
-	printf(" not %d ", y->id);
 	return temp;
 
 }
 
-session_t * getSessionID( session_t *s) {
+session_t * getSessionID( session_t *s ) {
 	static session_t *sessionList = NULL;
 	static int sessionid = 0;
 	session_t *iterator = sessionList;
