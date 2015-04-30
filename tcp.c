@@ -176,8 +176,8 @@ void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 }
 
 void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpdata, int len ) {
-	if( isBetween32(curseq, src->seq, dest->window) ) { //is this packet in window
-		if( isBetween32(src->seq, curseq, len) ) { //is this packet the next one expected
+	if( CheckWindow(src->seq, curseq, src->seq + dest->window) ) { //if its in the window
+		if( CheckWindow(curseq, src->seq, curseq + len) ) { //if this packet contains the next seq
 			writeBuffer( tcpdata, len, curseq, src );
 			struct ll *buf;
 			while(buf = ll_get(src->seq, dest)) {
@@ -262,11 +262,15 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	//printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
 	//printf("dest: %s ", getStateString( sesh->dest.state ) );
 
-	struct host *srchost;
+	struct host *srchost, *desthost;
 	if( direction == 0 ) {
+		printf(" --> ");
 		srchost = &(sesh->src);
+		desthost = &(sesh->dest);
 	} else {
 		srchost = &(sesh->dest);
+		desthost = &(sesh->src);
+		printf(" <-- ");
 	}
 	processOptions( srchost, tcpheader );
 	srchost->window = ntohs(tcpheader->window) << srchost->windowscale;
@@ -287,30 +291,14 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
 		printf(" window:%d ", srchost->window);
 		printf(" len: %04d  \t", tcpdatalen );
-		//tcp2disk( sesh, tcpdata, tcpdatalen, direction );
-		if( direction == 0 ) {
-			printf(" --> ");
-		} else {
-			printf(" <-- ");
-		}
 		if( tcpdatalen > 0 ) {
-			if( direction == 0 ) {
-				bufferTCP( curseq, &(sesh->src), &(sesh->dest), tcpdata, tcpdatalen );
-			} else {
-				bufferTCP( curseq, &(sesh->dest), &(sesh->src), tcpdata, tcpdatalen );
-			}
+			bufferTCP(curseq, srchost, desthost, tcpdata, tcpdatalen);
 		}
 	} else 	if( tcpheader->fin == 1 ) {
 		// on FIN, close files, free(sesh)
 		printf(" fin ");
-		struct host* finhost;
-		if( direction == 0 ) {
-			finhost = &(sesh->src);
-		} else {
-			finhost = &(sesh->dest);
-		}
-		if( finhost->diskout != NULL ) {
-			fclose(finhost->diskout);
+		if( srchost->diskout != NULL ) {
+			fclose(srchost->diskout);
 			printf("CLOSE!");
 		}
 	} else {

@@ -90,25 +90,17 @@ session_t * getSessionID( session_t *s ) {
 	return newsession;
 }
 
-int isBetween32(uint64_t num, uint64_t from, uint64_t len) {
-	uint32_t smallTo = (from + len) % UINT32_MAX;
-	uint64_t bigTo = from + len;
-	if( from < bigTo ) {
-		if( num >= from ) {
-			if( num <= bigTo ) {
-				return 1;
-			}
+int CheckWindow(uint32_t left, uint32_t seq, uint32_t right) {
+	if( left <= right ) {
+		if( (left <= seq) && (seq < right) ) {
+			return true;
 		}
-	} else if( from > smallTo ) { //wrap around
-		if( bigTo == smallTo ) {
-			printf("error in isBetween()\n");
-			return 0;
-		}
-		if( isBetween32(num, from, UINT32_MAX) || isBetween32(num, 0, smallTo) ) {
-			return 1;
+	} else {
+		if( !(left <= seq && seq < right ) ) {
+			return true;
 		}
 	}
-	return 0;
+	return false;
 }
 
 void ll_put(uint32_t seq, int len, void* tcpdata, struct host* dest){
@@ -128,7 +120,7 @@ void ll_put(uint32_t seq, int len, void* tcpdata, struct host* dest){
 struct ll* ll_get(uint32_t seq, struct host* dest) {
 	struct ll* buffer = dest->buf;
 	while( buffer != NULL ) {
-		if( isBetween32(seq, buffer->seq, buffer->len) ) {
+		if( CheckWindow(buffer->seq, seq, buffer->seq + buffer->len) ) {
 			remque(buffer);
 			if( buffer->prev == NULL ) {
 				dest->buf = buffer->next;
