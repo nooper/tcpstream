@@ -176,23 +176,23 @@ void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 }
 
 void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpdata, int len ) {
-	if( isBetween32(src->seq, curseq, len) )
-	{
-		writeBuffer( tcpdata, len, curseq, src );
-		struct ll *buf;
-		while(buf = ll_get(src->seq, dest)) {
-			writeBuffer( buf->tcpdata, buf->len, buf->seq, src );
-			dest->bufcount--;
-			free(buf->tcpdata);
-			free(buf);
-			//printf("unbuf %d", buf->len);
+	if( isBetween32(curseq, src->seq, dest->window) ) { //is this packet in window
+		if( isBetween32(src->seq, curseq, len) ) { //is this packet the next one expected
+			writeBuffer( tcpdata, len, curseq, src );
+			struct ll *buf;
+			while(buf = ll_get(src->seq, dest)) {
+				writeBuffer( buf->tcpdata, buf->len, buf->seq, src );
+				dest->bufcount--;
+				free(buf->tcpdata);
+				free(buf);
+				//printf("unbuf %d", buf->len);
+			}
+		} else { // packet is early. buffer it
+			ll_put( curseq, len, tcpdata, dest );
+			dest->bufcount++;
+			printf(" buffered ");
 		}
-	} else if ( curseq > src->seq ) {
-		// packet is early. buffer it
-		ll_put( curseq, len, tcpdata, dest );
-		dest->bufcount++;
-		printf(" buffered ");
-	} else {
+	} else { //packet is out of window
 		printf(" ignored ");
 	}
 	printf(" count:%d ", dest->bufcount);
@@ -201,10 +201,8 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 	char *tcpopt = ((void*)tcpheader) + 20; //options start at byte 20
 	char *optend = tcpopt + ((tcpheader->doff - 5) * 4); // number of 32bit words in the options
-	uint16_t *mss;
 
 	while(tcpopt < optend) {
-		printf(".");
 		switch(*tcpopt) {
 			case TCPOPT_EOL:
 			case TCPOPT_NOP:
@@ -212,7 +210,6 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 				break;
 
 			case TCPOPT_MAXSEG:
-				mss = (uint16_t*)(tcpopt + 2); //use ntohs() to read this
 				tcpopt += tcpopt[1];
 				break;
 
@@ -232,7 +229,6 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 				break;
 
 			case TCPOPT_TIMESTAMP:
-				printf( " TS " );
 				tcpopt += tcpopt[1];
 				break;
 
@@ -273,6 +269,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		srchost = &(sesh->dest);
 	}
 	processOptions( srchost, tcpheader );
+	srchost->window = ntohs(tcpheader->window) << srchost->windowscale;
 
 	if( tcpheader->syn == 1) {
 		static char filename[20];
@@ -288,7 +285,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	} else 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
-		printf(" window:%d ", ntohs(tcpheader->window) << srchost->windowscale);
+		printf(" window:%d ", srchost->window);
 		printf(" len: %04d  \t", tcpdatalen );
 		//tcp2disk( sesh, tcpdata, tcpdatalen, direction );
 		if( direction == 0 ) {
