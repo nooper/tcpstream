@@ -195,6 +195,54 @@ void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpd
 	} else {
 		printf(" ignored ");
 	}
+	printf(" count:%d ", dest->bufcount);
+}
+
+void processOptions( struct host *sender, struct tcphdr *tcpheader) {
+	char *tcpopt = ((void*)tcpheader) + 20; //options start at byte 20
+	char *optend = tcpopt + ((tcpheader->doff - 5) * 4); // number of 32bit words in the options
+	uint16_t *mss;
+
+	while(tcpopt < optend) {
+		printf(".");
+		switch(*tcpopt) {
+			case TCPOPT_EOL:
+			case TCPOPT_NOP:
+				tcpopt++;
+				break;
+
+			case TCPOPT_MAXSEG:
+				mss = (uint16_t*)(tcpopt + 2); //use ntohs() to read this
+				tcpopt += tcpopt[1];
+				break;
+
+			case TCPOPT_WINDOW:
+				sender->windowscale = (uint8_t)tcpopt[2];
+				printf(" WINDOW %hhu ", sender->windowscale);
+				tcpopt += tcpopt[1];
+				break;
+
+			case TCPOPT_SACK_PERMITTED:
+				tcpopt += tcpopt[1];
+				break;
+
+			case TCPOPT_SACK:
+				printf(" SACK ");
+				tcpopt += tcpopt[1];
+				break;
+
+			case TCPOPT_TIMESTAMP:
+				printf( " TS " );
+				tcpopt += tcpopt[1];
+				break;
+
+
+			default:
+				printf("bad option");
+				break;
+		}
+	}
+
 }
 
 void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
@@ -209,6 +257,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	s->dest.port = tcpheader->dest;
 	session_t *sesh = getSessionID( s );
 	sesh->counter++;
+	printf("%u.%03u \t", sesh->id, sesh->counter);
 
 	//printf("%s:%hu -> ", inet_ntoa(s->src.ip), ntohs(s->src.port));
 	//printf("%s:%hu ",inet_ntoa(s->dest.ip), ntohs(s->dest.port));
@@ -216,6 +265,15 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	int direction = setState( s, sesh, tcpheader );
 	//printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
 	//printf("dest: %s ", getStateString( sesh->dest.state ) );
+
+	struct host *srchost;
+	if( direction == 0 ) {
+		srchost = &(sesh->src);
+	} else {
+		srchost = &(sesh->dest);
+	}
+	processOptions( srchost, tcpheader );
+
 	if( tcpheader->syn == 1) {
 		static char filename[20];
 		if( direction == 0 ) {
@@ -228,9 +286,9 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			sesh->dest.diskout = fopen(filename, "a");
 		}
 	} else 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
-		printf("%u.%03u \t", sesh->id, sesh->counter);
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
+		printf(" window:%d ", ntohs(tcpheader->window) << srchost->windowscale);
 		printf(" len: %04d  \t", tcpdatalen );
 		//tcp2disk( sesh, tcpdata, tcpdatalen, direction );
 		if( direction == 0 ) {

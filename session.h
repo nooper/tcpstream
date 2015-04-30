@@ -18,6 +18,8 @@ struct host {
 	struct ll *buf;
 	FILE* diskout;
 	int bufcount;
+	int mss;
+	int windowscale;
 };
 
 
