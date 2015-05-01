@@ -90,7 +90,7 @@ session_t * getSessionID( session_t *s ) {
 	return newsession;
 }
 
-int CheckWindow(uint32_t left, uint32_t seq, uint32_t right) {
+bool CheckWindow(uint32_t left, uint32_t seq, uint32_t right) {
 	if( left <= right ) {
 		if( (left <= seq) && (seq < right) ) {
 			return true;
@@ -101,6 +101,10 @@ int CheckWindow(uint32_t left, uint32_t seq, uint32_t right) {
 		}
 	}
 	return false;
+}
+
+bool OverLap(uint32_t L1, uint32_t R1, uint32_t L2, uint32_t R2) {
+	return CheckWindow(L1, L2, R1) || CheckWindow(L2, L1, R2);
 }
 
 void ll_put(uint32_t seq, int len, void* tcpdata, struct host* dest){

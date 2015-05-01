@@ -176,7 +176,7 @@ void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 }
 
 void bufferTCP( uint32_t curseq, struct host* src, struct host* dest, void* tcpdata, int len ) {
-	if( CheckWindow(src->seq, curseq, src->seq + dest->window) ) { //if its in the window
+	if( OverLap(curseq, curseq + len, src->seq, src->seq + dest->window) ) { //if any part of the packet is in the window
 		if( CheckWindow(curseq, src->seq, curseq + len) ) { //if this packet contains the next seq
 			writeBuffer( tcpdata, len, curseq, src );
 			struct ll *buf;
@@ -209,17 +209,15 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 				tcpopt++;
 				break;
 
-			case TCPOPT_MAXSEG:
-				tcpopt += tcpopt[1];
-				break;
-
 			case TCPOPT_WINDOW:
 				sender->windowscale = (uint8_t)tcpopt[2];
 				printf(" WINDOW %hhu ", sender->windowscale);
 				tcpopt += tcpopt[1];
 				break;
 
+			case TCPOPT_MAXSEG:
 			case TCPOPT_SACK_PERMITTED:
+			case TCPOPT_TIMESTAMP:
 				tcpopt += tcpopt[1];
 				break;
 
@@ -227,11 +225,6 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 				printf(" SACK ");
 				tcpopt += tcpopt[1];
 				break;
-
-			case TCPOPT_TIMESTAMP:
-				tcpopt += tcpopt[1];
-				break;
-
 
 			default:
 				printf("bad option");
@@ -246,7 +239,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	uint32_t curseq, curack;
 	curseq = ntohl(tcpheader->seq);
 	curack = ntohl(tcpheader->ack_seq);
-	printf("seq: %u ack: %u \t", curseq, curack);
+	//printf("seq: %u ack: %u \t", curseq, curack);
 
 	// get session struct
 	s->src.port = tcpheader->source;
