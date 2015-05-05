@@ -84,6 +84,7 @@ session_t * getSessionID( session_t *s, int *direction ) {
 	newsession->src.diskout = newsession->dest.diskout = NULL;
 	newsession->src.bufcount = newsession->dest.bufcount = 0;
 	newsession->src.windowscale = newsession->dest.windowscale = 0;
+	newsession->src.window = newsession->dest.window = 0;
 	if( sessionList == NULL ) {
 		sessionList = newsession;
 	} else {

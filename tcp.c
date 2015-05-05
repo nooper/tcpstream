@@ -180,7 +180,7 @@ bool OverLap(uint32_t L1, uint32_t R1, uint32_t L2, uint32_t R2) {
 
 void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 	/* assumes curseq is in provided buffer */
-	int offset = src->seq - bufseq; //rewrite this for 32 bit wraparound
+	int offset = src->seq - bufseq;
 	int usefulLen = buflen - offset;
 	tcp2disk( src, buf + offset, usefulLen );
 	printf(" written %i ", usefulLen);
@@ -229,22 +229,19 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	curack = ntohl(tcpheader->ack_seq);
 	//printf("seq: %u ack: %u \t", curseq, curack);
 
-
-	//printf("%s:%hu -> ", inet_ntoa(s->src.ip), ntohs(s->src.port));
-	//printf("%s:%hu ",inet_ntoa(s->dest.ip), ntohs(s->dest.port));
+	printf("%s:%hu -> ", inet_ntoa(sesh->src.ip), sesh->src.port);
+	printf("%s:%hu ",inet_ntoa(sesh->dest.ip), sesh->dest.port);
 
 	//printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
 	//printf("dest: %s ", getStateString( sesh->dest.state ) );
 
 	struct host *srchost, *desthost;
 	if( direction == 0 ) {
-		printf(" --> ");
 		srchost = &(sesh->src);
 		desthost = &(sesh->dest);
 	} else {
 		srchost = &(sesh->dest);
 		desthost = &(sesh->src);
-		printf(" <-- ");
 	}
 	setState( sesh, tcpheader, direction );
 	processOptions( srchost, tcpheader );
@@ -254,7 +251,7 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	if( tcpheader->syn == 1) {
 		char filename[20];
 		srchost->seq = curseq + 1;
-		snprintf(filename, 20, "%d.%d.%d", sesh->id, srchost->port, direction);
+		snprintf(filename, 20, "%d.%hu.%d", sesh->id, srchost->port, direction);
 		srchost->diskout = fopen(filename, "a");
 	} else 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
@@ -280,7 +277,10 @@ struct ll* ll_remove(uint32_t seq, struct host* dest) {
 	struct ll* buffer = dest->buf;
 	while( buffer != NULL ) {
 		uint32_t curseq = ntohl(buffer->packet->seq);
-		if( CheckWindow(curseq, seq, curseq + buffer->len) ) {
+		struct tcphdr *tcpheader = buffer->packet;
+		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
+		int tcpdatalen = buffer->len - ((void*)tcpdata - (void*)tcpheader);
+		if( CheckWindow(curseq, seq, curseq + tcpdatalen) ) {
 			remque(buffer);
 			if( buffer->prev == NULL ) {
 				dest->buf = buffer->next;
@@ -306,9 +306,11 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	if( direction == 0 ) {
 		srchost = &(sesh->src);
 		desthost = &(sesh->dest);
+		printf(" --> ");
 	} else {
 		srchost = &(sesh->dest);
 		desthost = &(sesh->src);
+		printf(" <-- ");
 	}
 
 	if( tcpheader->syn == 1) {
@@ -357,45 +359,4 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			desthost->bufcount--;
 		}
 	}
-
-
-	/*
-	switch( status ) {
-		case 0: {
-				//process buffers
-				struct ll *nextpacket;
-				while( nextpacket = ll_remove( srchost->seq, desthost ) ) {
-					printf("unbuf ");
-					int status = singlePacket( sesh, nextpacket->packet, nextpacket->len, direction ); //should always return 0
-					if(status == 1) {
-						printf("BAD STATUS!");
-					}
-					free(nextpacket->packet);
-					free(nextpacket);
-					printf("\n");
-					//rename these horrible variables
-				}
-			break;
-			}
-		
-		case 1: {
-				//buffer
-				struct ll* node = (struct ll*)malloc(sizeof(struct ll));
-				node->next = node->prev = NULL;
-				node->len = tcplen;
-				node->packet = malloc(tcplen);
-				memcpy(node->packet, tcpheader, tcplen);
-				if( desthost->buf == NULL ) {
-					desthost->buf = node;
-				} else {
-					insque( node, desthost->buf );
-				}
-				printf(" buffering\n");
-				break;
-			}
-
-		default:
-			break;
-	}
-	*/
 }
