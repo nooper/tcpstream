@@ -15,7 +15,7 @@ struct host {
 	uint16_t port;
 	int state;
 	uint32_t seq;
-	struct ll *buf;
+	struct ll *bufhead, *buftail;
 	FILE* diskout;
 	int bufcount;
 	int window;

@@ -80,7 +80,8 @@ session_t * getSessionID( session_t *s, int *direction ) {
 	newsession->id = ++sessionid;
 	newsession->src.state = TCP_CLOSE;
 	newsession->dest.state = TCP_LISTEN;
-	newsession->src.buf = newsession->dest.buf = NULL;
+	newsession->src.bufhead = newsession->dest.bufhead = NULL;
+	newsession->src.buftail = newsession->dest.buftail = NULL;
 	newsession->src.diskout = newsession->dest.diskout = NULL;
 	newsession->src.bufcount = newsession->dest.bufcount = 0;
 	newsession->src.windowscale = newsession->dest.windowscale = 0;

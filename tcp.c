@@ -273,24 +273,68 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	}
 }
 
+void ll_remove2( struct ll *buffer, struct host *dest ) {
+	remque(buffer);
+	if( buffer->prev == NULL ) {
+		dest->bufhead = buffer->next;
+	}
+	if( buffer->next == NULL ) {
+		dest->buftail = buffer->prev;
+	}
+}
+
 struct ll* ll_remove(uint32_t seq, struct host* dest) {
-	struct ll* buffer = dest->buf;
+	struct ll* buffer = dest->bufhead;
 	while( buffer != NULL ) {
 		uint32_t curseq = ntohl(buffer->packet->seq);
 		struct tcphdr *tcpheader = buffer->packet;
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = buffer->len - ((void*)tcpdata - (void*)tcpheader);
 		if( CheckWindow(curseq, seq, curseq + tcpdatalen) ) {
-			remque(buffer);
-			if( buffer->prev == NULL ) {
-				dest->buf = buffer->next;
-			}
+			ll_remove2(buffer, dest);
 			return buffer;
 		} else {
-			buffer = buffer->next;
+			if( OverLap(seq, seq + dest->window, curseq, curseq + tcpdatalen) == false ) {
+				ll_remove2(buffer, dest);
+				struct ll *temp = buffer->next;
+				free(buffer->packet);
+				free(buffer);
+				buffer = temp;
+			} else {
+				buffer = buffer->next;
+			}
 		}
 	}
 	return buffer;
+}
+
+void ll_insert(uint32_t tcplen, struct tcphdr *packet, struct host *desthost) {
+	struct ll* node = (struct ll*)malloc(sizeof(struct ll));
+	node->next = node->prev = NULL;
+	node->len = tcplen;
+	node->packet = malloc(tcplen);
+	memcpy(node->packet, packet, tcplen);
+	if( desthost->bufhead == NULL ) {
+		desthost->bufhead = desthost->buftail = node;
+	} else {
+		uint32_t curseq = ntohl(packet->seq);
+		struct ll *after = desthost->buftail;
+		while( after != NULL ) {
+			if( curseq >= ntohl(after->packet->seq) ) {
+					insque(node, after);
+					after = NULL;
+			} else {
+				after = after->prev;
+			}
+		}
+		if(node->next == NULL) {
+			desthost->buftail = node;
+		}
+		if(node->prev == NULL) {
+			desthost->bufhead = node;
+		}
+	}
+	desthost->bufcount++;
 }
 
 void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
@@ -327,36 +371,28 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		if( OverLap(curseq, curseq + tcpdatalen, srchost->seq, srchost->seq + desthost->window) ) { //if any part of the packet is in the window
 			if( CheckWindow(curseq, srchost->seq, curseq + tcpdatalen) ) { //if this packet contains the next seq
 				singlePacket( sesh, tcpheader, tcplen, direction );
-				printf("\n");
-			} else { // buffer this packet
-				struct ll* node = (struct ll*)malloc(sizeof(struct ll));
-				node->next = node->prev = NULL;
-				node->len = tcplen;
-				node->packet = malloc(tcplen);
-				memcpy(node->packet, tcpheader, tcplen);
-				if( desthost->buf == NULL ) {
-					desthost->buf = node;
+				struct ll *next = ll_remove( srchost->seq, desthost);
+				if( next == NULL ) {
+					tcpheader = NULL;
 				} else {
-					insque( node, desthost->buf );
+					if( freeme == 1 ) {
+						free(tcpheader);
+					}
+					tcplen = next->len;
+					tcpheader = next->packet;
+					free(next);
+					freeme = 1;
+					desthost->bufcount--;
 				}
-				desthost->bufcount++;
-				printf(" buffering\n");
+			} else { // buffer this packet
+				ll_insert(tcplen, tcpheader, desthost);
+				printf(" buffering");
+				tcpheader = NULL;
 			}
 		} else {
-			printf(" ignored\n");
-		}
-		struct ll *next = ll_remove( srchost->seq, desthost);
-		if( next == NULL ) {
+			printf(" ignored");
 			tcpheader = NULL;
-		} else {
-			if( freeme == 1 ) {
-				free(tcpheader);
-			}
-			tcplen = next->len;
-			tcpheader = next->packet;
-			free(next);
-			freeme = 1;
-			desthost->bufcount--;
 		}
+		printf("\n");
 	}
 }
