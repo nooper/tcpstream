@@ -281,6 +281,7 @@ void ll_remove2( struct ll *buffer, struct host *dest ) {
 	if( buffer->next == NULL ) {
 		dest->buftail = buffer->prev;
 	}
+	dest->bufcount--;
 }
 
 struct ll* ll_remove(uint32_t seq, struct host* dest) {
@@ -382,7 +383,6 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 					tcpheader = next->packet;
 					free(next);
 					freeme = 1;
-					desthost->bufcount--;
 				}
 			} else { // buffer this packet
 				ll_insert(tcplen, tcpheader, desthost);
