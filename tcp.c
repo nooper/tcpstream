@@ -10,117 +10,66 @@
 int tcp2disk( struct host* src, void* tcpdata, int len );
 
 int setState( session_t *sesh, struct tcphdr *h, int direction ) {
+	struct host *srchost, *desthost;
+	if( direction == 0 ) {
+		srchost = &(sesh->src);
+		desthost = &(sesh->dest);
+	} else {
+		srchost = &(sesh->dest);
+		desthost = &(sesh->src);
+	}
 
-	// rule 1: The TCP states for src and dest are set as they would be after the packet is sent,
-	// but before the packet is received and processed by the destination. ie. as perceived by a middle-man listening between the parties.
-	// rule 2: In the session struct, 'src' and 'dest' do not refer to the source or destination of the packet being currently processed.
-	// It refers to the source and destination of the first packet. 'src' is the initiator of the tcp session at the beginning.
-	
+	uint32_t curseq = ntohl(h->seq);
+	uint32_t curack = ntohl(h->ack_seq);
 
-	switch ( sesh->src.state ) {
+	switch( srchost->state ) {
+		case TCP_CLOSE:
+			if( h->syn == 1 && desthost->state == TCP_LISTEN ) {
+				srchost->state = TCP_SYN_SENT;
+				desthost->state = TCP_SYN_RECV;
+			}
+			break;
+
+		case TCP_SYN_RECV:
+			if( h->syn == 1 && h->ack == 1 && desthost->state == TCP_SYN_SENT ) {
+				if( curack == desthost->seq ) {
+					desthost->state = TCP_ESTABLISHED;
+				}
+			}
+			break;
+
 		case TCP_ESTABLISHED:
-			if( direction == 0 ) {
-				if( h->fin == 1 ) {
-					if( sesh->dest.state == TCP_ESTABLISHED ) {
-						sesh->src.state = TCP_FIN_WAIT1;
-					} else if( sesh->dest.state == TCP_FIN_WAIT1 ) {
-						if( h->ack == 0 ) {
-							sesh->src.state = TCP_CLOSE_WAIT;
-						} else if( h->ack == 1 ) {
-							sesh->src.state = TCP_LAST_ACK;
-						}
-					}
-				}
-			} else {
-				if( sesh->dest.state == TCP_ESTABLISHED ) {
-					if( h->fin == 1 ) {
-						sesh->dest.state = TCP_FIN_WAIT1;
-					}
-				}
-			}
-			break;
-
-		case TCP_FIN_WAIT1:
-			if( direction == 0 ) {
-				if( h->ack == 1 ) {
-					if( sesh->dest.state == TCP_LAST_ACK ) {
-						sesh->src.state = TCP_TIME_WAIT; // done
-						sesh->dest.state = TCP_CLOSE; // the only violation of rule 1 because there will never be a response to this packet
-					}
-				}
-						
-			} else {
-				if( sesh->dest.state == TCP_ESTABLISHED ) {
-					if( h->ack == 1 ) {
-						if( h->fin == 0 ) {
-							sesh->dest.state = TCP_CLOSE_WAIT;
-						} else if( h->fin == 1 ) {
-							sesh->dest.state = TCP_LAST_ACK;
-						}
-					}
-				}
-			}
-			break;
-
-		case TCP_FIN_WAIT2:
-			if( direction == 0 ) {
-			} else {
+			if( desthost->state == TCP_SYN_RECV && h->ack == 1 ) {
+				desthost->state = TCP_ESTABLISHED;
+			} else if( desthost->state == TCP_ESTABLISHED && h->fin == 1 ) {
+				srchost->state = TCP_FIN_WAIT1;
+				desthost->state = TCP_CLOSE_WAIT;
 			}
 			break;
 
 		case TCP_CLOSE_WAIT:
-			if( direction == 0 ) {
-			} else {
+			if( desthost->state == TCP_FIN_WAIT1 ) {
+				if( curack == desthost->seq ) {
+					desthost->state = TCP_FIN_WAIT2;
+				}
+			}
+			if( (desthost->state == TCP_FIN_WAIT2 || desthost->state == TCP_FIN_WAIT1) && h->fin == 1 ) {
+				srchost->state = TCP_LAST_ACK;
+				desthost->state = TCP_TIME_WAIT;
 			}
 			break;
 
-		case TCP_LAST_ACK:
-			if( direction == 0 ) {
-			} else {
-				if( sesh->dest.state == TCP_FIN_WAIT1 ) {
-					if( h->ack == 1 ) {
-						sesh->src.state = TCP_CLOSE;
-						sesh->dest.state = TCP_TIME_WAIT;
-					}
+		case TCP_TIME_WAIT:
+			if( desthost->state == TCP_TIME_WAIT ) {
+				if( curack == desthost->seq ) {
+					desthost->state = TCP_CLOSE;
 				}
 			}
 			break;
 
 
-		// Session establishment:
-		case TCP_CLOSE:
-			if( direction == 0) {
-				if( h->syn == 1 && h->ack == 0) {
-					if( sesh->dest.state == TCP_LISTEN ) {
-						sesh->src.state = TCP_SYN_SENT;
-					}
-				}
-			}
-			break;
 
-		case TCP_SYN_SENT:
-			if( direction == 1) {
-				if( h->syn == 1 && h->ack == 1 ) {
-					if( sesh->dest.state == TCP_LISTEN ) {
-						sesh->dest.state = TCP_SYN_RECV;
-					}
-				}
-			} else if ( direction == 0 ) {
-				if( h->syn == 0 && h->ack == 1 ) {
-					if( sesh->dest.state == TCP_SYN_RECV ) {
-						sesh->src.state = TCP_ESTABLISHED;
-						sesh->dest.state = TCP_ESTABLISHED;
-					}
-				}
-			}
-			break;
-
-
-		default:
-			printf(" dunno ");
 	}
-	
-	return direction;
 }
 
 char * getStateString( int state ) {
@@ -229,11 +178,7 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	curack = ntohl(tcpheader->ack_seq);
 	//printf("seq: %u ack: %u \t", curseq, curack);
 
-	printf("%s:%hu -> ", inet_ntoa(sesh->src.ip), sesh->src.port);
-	printf("%s:%hu ",inet_ntoa(sesh->dest.ip), sesh->dest.port);
 
-	//printf(" %d src: %s ", sesh->id, getStateString( sesh->src.state ) );
-	//printf("dest: %s ", getStateString( sesh->dest.state ) );
 
 	struct host *srchost, *desthost;
 	if( direction == 0 ) {
@@ -247,30 +192,56 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	processOptions( srchost, tcpheader );
 	srchost->window = ntohs(tcpheader->window) << srchost->windowscale;
 	printf(" (%d) ", desthost->bufcount);
+	printf(" window:%d ", srchost->window);
+	printf(" src: %s ", getStateString( sesh->src.state ) );
+	printf("dest: %s ", getStateString( sesh->dest.state ) );
 
-	if( tcpheader->syn == 1) {
-		char filename[20];
-		srchost->seq = curseq + 1;
-		snprintf(filename, 20, "%d.%hu.%d", sesh->id, srchost->port, direction);
-		srchost->diskout = fopen(filename, "a");
-	} else 	if( (sesh->src.state == TCP_ESTABLISHED) || (sesh->dest.state == TCP_ESTABLISHED) ) {
-		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
-		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
-		printf(" window:%d ", srchost->window);
-		printf(" len: %04d  \t", tcpdatalen );
-		if( tcpdatalen > 0 ) {
-			writeBuffer( tcpdata, tcpdatalen, curseq, srchost );
+
+
+	switch( srchost->state ) {
+		case TCP_SYN_SENT:
+		case TCP_SYN_RECV: {
+			char filename[20];
+			snprintf(filename, 20, "%d.%hu.%d", sesh->id, srchost->port, direction);
+			srchost->diskout = fopen(filename, "a");
+			srchost->seq = curseq + 1;
+			break;
 		}
-	} else 	if( tcpheader->fin == 1 ) {
-		// on FIN, close files, free(sesh)
-		printf(" fin ");
-		if( srchost->diskout != NULL ) {
-			fclose(srchost->diskout);
-			printf("CLOSE!");
+
+		case TCP_FIN_WAIT1:
+		case TCP_CLOSE_WAIT:
+		case TCP_LAST_ACK:
+		case TCP_ESTABLISHED: {
+			void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
+			int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
+			printf(" len: %04d  \t", tcpdatalen );
+			if( tcpdatalen > 0 ) {
+				writeBuffer( tcpdata, tcpdatalen, curseq, srchost );
+			}
+			if( tcpheader->fin == 1 ) {
+				srchost->seq++;
+				if( srchost->diskout != NULL ) {
+					fclose(srchost->diskout);
+					printf("fclose");
+				}
+			}
+			break;
 		}
-	} else {
-		printf(" BAD ");
+
+		case TCP_TIME_WAIT:
+			printf(" done ");
+			break;
+
+
+		default:
+			if( tcpheader->rst == 1 ) {
+				printf("RESET");
+			} else {
+				printf("BAD");
+			}
 	}
+
+
 }
 
 void ll_remove2( struct ll *buffer, struct host *dest ) {
@@ -347,6 +318,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	sesh->counter++;
 	printf("%u.%03u \t", sesh->id, sesh->counter);
 
+	printf("%s:%hu", inet_ntoa(sesh->src.ip), sesh->src.port);
 	struct host *srchost, *desthost;
 	if( direction == 0 ) {
 		srchost = &(sesh->src);
@@ -357,6 +329,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		desthost = &(sesh->src);
 		printf(" <-- ");
 	}
+	printf("%s:%hu ",inet_ntoa(sesh->dest.ip), sesh->dest.port);
 
 	if( tcpheader->syn == 1) {
 		singlePacket( sesh, tcpheader, tcplen, direction );
