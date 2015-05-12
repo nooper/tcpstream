@@ -149,12 +149,16 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 
 			case TCPOPT_WINDOW:
 				sender->windowscale = (uint8_t)tcpopt[2];
-				printf(" WINDOW %hhu ", sender->windowscale);
+				printf(" WINDOW <<%hhu ", sender->windowscale);
+				tcpopt += tcpopt[1];
+				break;
+
+			case TCPOPT_SACK_PERMITTED:
+				printf(" SACKPERM ");
 				tcpopt += tcpopt[1];
 				break;
 
 			case TCPOPT_MAXSEG:
-			case TCPOPT_SACK_PERMITTED:
 			case TCPOPT_TIMESTAMP:
 				tcpopt += tcpopt[1];
 				break;
@@ -176,7 +180,6 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	uint32_t curseq, curack;
 	curseq = ntohl(tcpheader->seq);
 	curack = ntohl(tcpheader->ack_seq);
-	//printf("seq: %u ack: %u \t", curseq, curack);
 
 
 
@@ -297,6 +300,9 @@ void ll_insert(uint32_t tcplen, struct tcphdr *packet, struct host *desthost) {
 					after = NULL;
 			} else {
 				after = after->prev;
+				if( after == NULL ) { //reached the first node
+					node->next = desthost->bufhead;
+				}
 			}
 		}
 		if(node->next == NULL) {
@@ -342,6 +348,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
 		uint32_t curseq = ntohl(tcpheader->seq);
+		printf("seq: %u \t", curseq);
 		if( OverLap(curseq, curseq + tcpdatalen, srchost->seq, srchost->seq + desthost->window) ) { //if any part of the packet is in the window
 			if( CheckWindow(curseq, srchost->seq, curseq + tcpdatalen) ) { //if this packet contains the next seq
 				singlePacket( sesh, tcpheader, tcplen, direction );
@@ -364,6 +371,9 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			}
 		} else {
 			printf(" ignored");
+			if( tcpheader->rst == 1 ) {
+				printf(" RESET");
+			}
 			tcpheader = NULL;
 		}
 		printf("\n");
