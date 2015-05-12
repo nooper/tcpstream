@@ -1,11 +1,9 @@
-reads: session.o reads.c diskwriter.o tcp.o session.h
-	gcc -g -Werror -lpcap reads.c session.o diskwriter.o tcp.o -o reads
+CFLAGS=-g
+LDLIBS=-lpcap
 
-tcp.o: tcp.c
-	gcc -g -c tcp.c
+all: reads
 
-session.o: session.c session.h
-	gcc -g -c session.c
+reads: *.c *.h
 
-diskwriter.o: diskwriter.c
-	gcc -g -c diskwriter.c
+clean:
+	${RM} reads
