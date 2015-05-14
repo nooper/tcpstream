@@ -302,6 +302,7 @@ void ll_insert(uint32_t tcplen, struct tcphdr *packet, struct host *desthost) {
 				after = after->prev;
 				if( after == NULL ) { //reached the first node
 					node->next = desthost->bufhead;
+					node->next->prev = node;
 				}
 			}
 		}
