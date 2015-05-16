@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+#ifdef DEBUG
+# define DEBUG_PRINT(x) printf x
+#else
+# define DEBUG_PRINT(x) do {} while (0)
+#endif
+
 struct ll {
 	struct ll* next;
 	struct ll* prev;

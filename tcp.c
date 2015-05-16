@@ -132,7 +132,7 @@ void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 	int offset = src->seq - bufseq;
 	int usefulLen = buflen - offset;
 	tcp2disk( src, buf + offset, usefulLen );
-	printf(" written %i ", usefulLen);
+	DEBUG_PRINT((" written %i ", usefulLen));
 	src->seq += usefulLen;
 }
 
@@ -149,12 +149,12 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 
 			case TCPOPT_WINDOW:
 				sender->windowscale = (uint8_t)tcpopt[2];
-				printf(" WINDOW <<%hhu ", sender->windowscale);
+				DEBUG_PRINT((" WINDOW <<%hhu ", sender->windowscale));
 				tcpopt += tcpopt[1];
 				break;
 
 			case TCPOPT_SACK_PERMITTED:
-				printf(" SACKPERM ");
+				DEBUG_PRINT((" SACKPERM "));
 				tcpopt += tcpopt[1];
 				break;
 
@@ -164,12 +164,12 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 				break;
 
 			case TCPOPT_SACK:
-				printf(" SACK ");
+				DEBUG_PRINT((" SACK "));
 				tcpopt += tcpopt[1];
 				break;
 
 			default:
-				printf("bad option");
+				DEBUG_PRINT(("bad option"));
 				break;
 		}
 	}
@@ -180,8 +180,6 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	uint32_t curseq, curack;
 	curseq = ntohl(tcpheader->seq);
 	curack = ntohl(tcpheader->ack_seq);
-
-
 
 	struct host *srchost, *desthost;
 	if( direction == 0 ) {
@@ -194,12 +192,8 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	setState( sesh, tcpheader, direction );
 	processOptions( srchost, tcpheader );
 	srchost->window = ntohs(tcpheader->window) << srchost->windowscale;
-	printf(" (%d) ", desthost->bufcount);
-	printf(" window:%d ", srchost->window);
-	printf(" src: %s ", getStateString( sesh->src.state ) );
-	printf("dest: %s ", getStateString( sesh->dest.state ) );
 
-
+	DEBUG_PRINT((" (%d) window:%d src: %s dest: %s ", desthost->bufcount, srchost->window, getStateString(sesh->src.state), getStateString(sesh->dest.state)));
 
 	switch( srchost->state ) {
 		case TCP_SYN_SENT:
@@ -217,7 +211,7 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 		case TCP_ESTABLISHED: {
 			void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 			int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
-			printf(" len: %04d  \t", tcpdatalen );
+			DEBUG_PRINT((" len: %04d  \t", tcpdatalen ));
 			if( tcpdatalen > 0 ) {
 				writeBuffer( tcpdata, tcpdatalen, curseq, srchost );
 			}
@@ -225,22 +219,22 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 				srchost->seq++;
 				if( srchost->diskout != NULL ) {
 					fclose(srchost->diskout);
-					printf("fclose");
+					DEBUG_PRINT(("fclose"));
 				}
 			}
 			break;
 		}
 
 		case TCP_TIME_WAIT:
-			printf(" done ");
+			DEBUG_PRINT((" done "));
 			break;
 
 
 		default:
 			if( tcpheader->rst == 1 ) {
-				printf("RESET");
+				DEBUG_PRINT(("RESET"));
 			} else {
-				printf("BAD");
+				DEBUG_PRINT(("BAD"));
 			}
 	}
 
@@ -323,25 +317,25 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	s->dest.port = ntohs(tcpheader->dest);
 	session_t *sesh = getSessionID( s, &direction );
 	sesh->counter++;
-	printf("%u.%03u \t", sesh->id, sesh->counter);
+	DEBUG_PRINT(("%u.%03u \t", sesh->id, sesh->counter));
 
-	printf("%s:%hu", inet_ntoa(sesh->src.ip), sesh->src.port);
+	DEBUG_PRINT(("%s:%hu", inet_ntoa(sesh->src.ip), sesh->src.port));
 	struct host *srchost, *desthost;
 	if( direction == 0 ) {
 		srchost = &(sesh->src);
 		desthost = &(sesh->dest);
-		printf(" --> ");
+		DEBUG_PRINT((" --> "));
 	} else {
 		srchost = &(sesh->dest);
 		desthost = &(sesh->src);
-		printf(" <-- ");
+		DEBUG_PRINT((" <-- "));
 	}
-	printf("%s:%hu ",inet_ntoa(sesh->dest.ip), sesh->dest.port);
+	DEBUG_PRINT(("%s:%hu ",inet_ntoa(sesh->dest.ip), sesh->dest.port));
 
 	if( tcpheader->syn == 1) {
 		singlePacket( sesh, tcpheader, tcplen, direction );
 		tcpheader = NULL;
-		printf("\n");
+		DEBUG_PRINT(("\n"));
 	}
 
 	int freeme = 0;
@@ -349,7 +343,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 		void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 		int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
 		uint32_t curseq = ntohl(tcpheader->seq);
-		printf("seq: %u \t", curseq);
+		DEBUG_PRINT(("seq: %u \t", curseq));
 		if( OverLap(curseq, curseq + tcpdatalen, srchost->seq, srchost->seq + desthost->window) ) { //if any part of the packet is in the window
 			if( CheckWindow(curseq, srchost->seq, curseq + tcpdatalen) ) { //if this packet contains the next seq
 				singlePacket( sesh, tcpheader, tcplen, direction );
@@ -367,16 +361,16 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 				}
 			} else { // buffer this packet
 				ll_insert(tcplen, tcpheader, desthost);
-				printf(" buffering");
+				DEBUG_PRINT((" buffering"));
 				tcpheader = NULL;
 			}
 		} else {
-			printf(" ignored");
+			DEBUG_PRINT((" ignored"));
 			if( tcpheader->rst == 1 ) {
-				printf(" RESET");
+				DEBUG_PRINT((" RESET"));
 			}
 			tcpheader = NULL;
 		}
-		printf("\n");
+		DEBUG_PRINT(("\n"));
 	}
 }

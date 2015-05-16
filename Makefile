@@ -1,9 +1,13 @@
-CFLAGS=-g
 LDLIBS=-lpcap
 
-all: reads
+all: tcpstream
 
-reads: *.c *.h
+debug: CFLAGS += -g -DDEBUG
+debug: tcpstream
+
+tcpstream: session.h session.c tcpstream.c tcp.c diskwriter.c
 
 clean:
-	${RM} reads
+	${RM} tcpstream
+
+.PHONY: all debug clean

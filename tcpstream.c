@@ -45,7 +45,7 @@ int readpcap( pcap_t * in ) {
 				break;
 
 			default:
-				printf("L2 header %d\n", (int)llheadertype);
+				DEBUG_PRINT(("L2 header %d\n", (int)llheadertype));
 				continue;
 		}
 
