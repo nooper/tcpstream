@@ -4,6 +4,9 @@
 #include <string.h>
 #include "session.h"
 
+session_t *sessionList = NULL;
+int sessionid = 0;
+
 int compare_host ( struct in_addr ipa, struct in_addr ipb, uint16_t porta, uint16_t portb ) {
 	int32_t ip1, ip2;
 	uint16_t port1, port2;
@@ -62,8 +65,6 @@ int compare_session( const void *a, const void *b, int *direction ) {
 }
 
 session_t * getSessionID( session_t *s, int *direction ) {
-	static session_t *sessionList = NULL;
-	static int sessionid = 0;
 	session_t *iterator = sessionList;
 	while(iterator != NULL) {
 		//search and return
@@ -95,3 +96,19 @@ session_t * getSessionID( session_t *s, int *direction ) {
 	return newsession;
 }
 
+void removeSession( session_t *sesh ) {
+	session_t *iter = sessionList;
+	while( iter != NULL ) {
+		if( sesh == iter ) {
+			remque(iter);
+			if( iter->prev == NULL ) {
+				sessionList = iter->next;
+			}
+			free(iter);
+			DEBUG_PRINT((" removed sesh "));
+			break;
+		} else {
+			iter = iter->next;
+		}
+	}
+}

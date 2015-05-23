@@ -195,6 +195,10 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 
 	DEBUG_PRINT((" (%d) window:%d src: %s dest: %s ", desthost->bufcount, srchost->window, getStateString(sesh->src.state), getStateString(sesh->dest.state)));
 
+	if( tcpheader->rst == 1 ) {
+		DEBUG_PRINT((" RESET "));
+	}
+
 	switch( srchost->state ) {
 		case TCP_SYN_SENT:
 		case TCP_SYN_RECV: {
@@ -227,13 +231,12 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 
 		case TCP_TIME_WAIT:
 			DEBUG_PRINT((" done "));
+			removeSession(sesh);
 			break;
 
 
 		default:
-			if( tcpheader->rst == 1 ) {
-				DEBUG_PRINT(("RESET"));
-			} else {
+			if( tcpheader->rst != 1 ) {
 				DEBUG_PRINT(("BAD"));
 			}
 	}

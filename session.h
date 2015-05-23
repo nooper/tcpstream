@@ -39,3 +39,4 @@ typedef struct tcp_session {
 
 int compare_session( const void *a, const void *b, int *direction );
 session_t * getSessionID( session_t *s, int *direction );
+void removeSession( session_t *sesh );
