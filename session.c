@@ -2,7 +2,7 @@
 #include <netinet/tcp.h>
 #include <search.h>
 #include <string.h>
-#include "session.h"
+#include "diskwriter.h"
 
 session_t *sessionList = NULL;
 int sessionid = 0;
@@ -85,6 +85,8 @@ void removeSession( session_t *sesh ) {
 			if( iter->prev == NULL ) {
 				sessionList = iter->next;
 			}
+			disk_close( &(iter->src) );
+			disk_close( &(iter->dest) );
 			free(iter);
 			DEBUG_PRINT((" removed sesh "));
 			break;

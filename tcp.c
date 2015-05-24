@@ -5,9 +5,7 @@
 #include <netinet/tcp.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "session.h"
-
-int tcp2disk( struct host* src, void* tcpdata, int len );
+#include "diskwriter.h"
 
 int setState( session_t *sesh, struct tcphdr *h, int direction ) {
 	struct host *srchost, *desthost;
@@ -131,7 +129,7 @@ void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 	/* assumes curseq is in provided buffer */
 	int offset = src->seq - bufseq;
 	int usefulLen = buflen - offset;
-	tcp2disk( src, buf + offset, usefulLen );
+	disk_write( src, buf + offset, usefulLen );
 	DEBUG_PRINT((" written %i ", usefulLen));
 	src->seq += usefulLen;
 }
@@ -202,10 +200,8 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	switch( srchost->state ) {
 		case TCP_SYN_SENT:
 		case TCP_SYN_RECV: {
-			char filename[20];
-			snprintf(filename, 20, "%d.%hu.%d", sesh->id, srchost->port, direction);
-			srchost->diskout = fopen(filename, "a");
 			srchost->seq = curseq + 1;
+			disk_open( sesh, srchost, direction );
 			break;
 		}
 
@@ -221,10 +217,7 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 			}
 			if( tcpheader->fin == 1 ) {
 				srchost->seq++;
-				if( srchost->diskout != NULL ) {
-					fclose(srchost->diskout);
-					DEBUG_PRINT(("fclose"));
-				}
+				disk_close( srchost );
 			}
 			break;
 		}
