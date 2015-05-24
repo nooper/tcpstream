@@ -1,3 +1,4 @@
+CFLAGS=-Werror
 LDLIBS=-lpcap
 
 all: tcpstream

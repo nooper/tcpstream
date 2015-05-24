@@ -319,6 +319,10 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 	s->src.port = ntohs(tcpheader->source);
 	s->dest.port = ntohs(tcpheader->dest);
 	session_t *sesh = getSessionID( s, &direction );
+	if( sesh == NULL ) {
+		sesh = insertSession(s);
+		direction = 0;
+	}
 	sesh->counter++;
 	DEBUG_PRINT(("%u.%03u \t", sesh->id, sesh->counter));
 

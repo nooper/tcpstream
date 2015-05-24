@@ -69,31 +69,12 @@ session_t * getSessionID( session_t *s, int *direction ) {
 	while(iterator != NULL) {
 		//search and return
 		if( compare_session(s, iterator, direction) == 0 ) {
-			return iterator;
+			break;
 		} else {
 			iterator = iterator->next;
 		}
 	}
-	//insert
-	session_t *newsession = malloc(sizeof(session_t));
-	memcpy( newsession, s, sizeof(session_t) );
-	newsession->next = newsession->prev = NULL;
-	newsession->id = ++sessionid;
-	newsession->src.state = TCP_CLOSE;
-	newsession->dest.state = TCP_LISTEN;
-	newsession->src.bufhead = newsession->dest.bufhead = NULL;
-	newsession->src.buftail = newsession->dest.buftail = NULL;
-	newsession->src.diskout = newsession->dest.diskout = NULL;
-	newsession->src.bufcount = newsession->dest.bufcount = 0;
-	newsession->src.windowscale = newsession->dest.windowscale = 0;
-	newsession->src.window = newsession->dest.window = 0;
-	if( sessionList == NULL ) {
-		sessionList = newsession;
-	} else {
-		insque( newsession, sessionList );
-	}
-	*direction = 0;
-	return newsession;
+	return iterator;
 }
 
 void removeSession( session_t *sesh ) {
@@ -111,4 +92,25 @@ void removeSession( session_t *sesh ) {
 			iter = iter->next;
 		}
 	}
+}
+
+session_t * insertSession( session_t *s ) {
+	session_t *newsession = malloc(sizeof(session_t));
+	memcpy( newsession, s, sizeof(session_t) );
+	newsession->next = newsession->prev = NULL;
+	newsession->id = ++sessionid;
+	newsession->src.state = TCP_CLOSE;
+	newsession->dest.state = TCP_LISTEN;
+	newsession->src.bufhead = newsession->dest.bufhead = NULL;
+	newsession->src.buftail = newsession->dest.buftail = NULL;
+	newsession->src.diskout = newsession->dest.diskout = NULL;
+	newsession->src.bufcount = newsession->dest.bufcount = 0;
+	newsession->src.windowscale = newsession->dest.windowscale = 0;
+	newsession->src.window = newsession->dest.window = 0;
+	if( sessionList == NULL ) {
+		sessionList = newsession;
+	} else {
+		insque( newsession, sessionList );
+	}
+	return newsession;
 }
