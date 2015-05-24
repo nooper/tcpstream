@@ -6,6 +6,7 @@
 
 session_t *sessionList = NULL;
 int sessionid = 0;
+int sessioncount = 0;
 
 int compare_host ( struct in_addr ipa, struct in_addr ipb, uint16_t porta, uint16_t portb ) {
 	int32_t ip1, ip2;
@@ -74,6 +75,7 @@ session_t * getSessionID( session_t *s, int *direction ) {
 			iterator = iterator->next;
 		}
 	}
+	DEBUG_PRINT((" %d ", sessioncount));
 	return iterator;
 }
 
@@ -89,6 +91,7 @@ void removeSession( session_t *sesh ) {
 			disk_close( &(iter->dest) );
 			free(iter);
 			DEBUG_PRINT((" removed sesh "));
+			sessioncount--;
 			break;
 		} else {
 			iter = iter->next;
@@ -109,10 +112,12 @@ session_t * insertSession( session_t *s ) {
 	newsession->src.bufcount = newsession->dest.bufcount = 0;
 	newsession->src.windowscale = newsession->dest.windowscale = 0;
 	newsession->src.window = newsession->dest.window = 0;
+	newsession->src.supports_ws = newsession->dest.supports_ws = false;
 	if( sessionList == NULL ) {
 		sessionList = newsession;
 	} else {
 		insque( newsession, sessionList );
 	}
+	sessioncount++;
 	return newsession;
 }

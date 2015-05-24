@@ -26,6 +26,7 @@ struct host {
 	int bufcount;
 	int window;
 	int windowscale;
+	bool supports_ws;
 };
 
 

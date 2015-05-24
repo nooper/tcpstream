@@ -147,8 +147,9 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 
 			case TCPOPT_WINDOW:
 				sender->windowscale = (uint8_t)tcpopt[2];
-				DEBUG_PRINT((" WINDOW <<%hhu ", sender->windowscale));
+				DEBUG_PRINT((" WS %hhu ", sender->windowscale));
 				tcpopt += tcpopt[1];
+				sender->supports_ws = true;
 				break;
 
 			case TCPOPT_SACK_PERMITTED:
@@ -189,7 +190,6 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	}
 	setState( sesh, tcpheader, direction );
 	processOptions( srchost, tcpheader );
-	srchost->window = ntohs(tcpheader->window) << srchost->windowscale;
 
 	DEBUG_PRINT((" (%d) window:%d src: %s dest: %s ", desthost->bufcount, srchost->window, getStateString(sesh->src.state), getStateString(sesh->dest.state)));
 
@@ -201,15 +201,21 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 
 	switch( srchost->state ) {
 		case TCP_SYN_SENT:
-		case TCP_SYN_RECV: {
 			srchost->seq = curseq + 1;
 			break;
-		}
+
+		case TCP_SYN_RECV:
+			srchost->seq = curseq + 1;
+			if( srchost->supports_ws == false ) {
+				desthost->windowscale = 0;
+			}
+			break;
 
 		case TCP_FIN_WAIT1:
 		case TCP_CLOSE_WAIT:
 		case TCP_LAST_ACK:
 		case TCP_ESTABLISHED: {
+			srchost->window = ntohs(tcpheader->window) << srchost->windowscale;
 			void *tcpdata = ((void*)tcpheader) + (tcpheader->doff * 4);
 			int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
 			DEBUG_PRINT((" len: %04d  \t", tcpdatalen ));
