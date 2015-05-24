@@ -125,11 +125,11 @@ bool OverLap(uint32_t L1, uint32_t R1, uint32_t L2, uint32_t R2) {
 	return CheckWindow(L1, L2, R1) || CheckWindow(L2, L1, R2);
 }
 
-void writeBuffer( void* buf, int buflen, uint32_t bufseq, struct host* src ) {
+void writeBuffer( session_t *sesh, int direction, void* buf, int buflen, uint32_t bufseq, struct host* src ) {
 	/* assumes curseq is in provided buffer */
 	int offset = src->seq - bufseq;
 	int usefulLen = buflen - offset;
-	disk_write( src, buf + offset, usefulLen );
+	disk_write( sesh, direction, src, buf + offset, usefulLen );
 	DEBUG_PRINT((" written %i ", usefulLen));
 	src->seq += usefulLen;
 }
@@ -194,14 +194,15 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 	DEBUG_PRINT((" (%d) window:%d src: %s dest: %s ", desthost->bufcount, srchost->window, getStateString(sesh->src.state), getStateString(sesh->dest.state)));
 
 	if( tcpheader->rst == 1 ) {
+		removeSession(sesh);
 		DEBUG_PRINT((" RESET "));
+		return;
 	}
 
 	switch( srchost->state ) {
 		case TCP_SYN_SENT:
 		case TCP_SYN_RECV: {
 			srchost->seq = curseq + 1;
-			disk_open( sesh, srchost, direction );
 			break;
 		}
 
@@ -213,7 +214,7 @@ void singlePacket( session_t *sesh, struct tcphdr *tcpheader, int tcplen, int di
 			int tcpdatalen = tcplen - ((void*)tcpdata - (void*)tcpheader);
 			DEBUG_PRINT((" len: %04d  \t", tcpdatalen ));
 			if( tcpdatalen > 0 ) {
-				writeBuffer( tcpdata, tcpdatalen, curseq, srchost );
+				writeBuffer( sesh, direction, tcpdata, tcpdatalen, curseq, srchost );
 			}
 			if( tcpheader->fin == 1 ) {
 				srchost->seq++;
@@ -366,9 +367,6 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			}
 		} else {
 			DEBUG_PRINT((" ignored"));
-			if( tcpheader->rst == 1 ) {
-				DEBUG_PRINT((" RESET"));
-			}
 			tcpheader = NULL;
 		}
 		DEBUG_PRINT(("\n"));
