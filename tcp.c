@@ -168,8 +168,8 @@ void processOptions( struct host *sender, struct tcphdr *tcpheader) {
 				break;
 
 			default:
-				DEBUG_PRINT(("bad option"));
-				break;
+				DEBUG_PRINT(("bad option %hhu ", *(uint8_t*)tcpopt));
+				return;
 		}
 	}
 
@@ -324,7 +324,7 @@ void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
 			sesh = insertSession(s);
 			direction = 0;
 		} else {
-			printf("ignored\n");
+			DEBUG_PRINT(("ignored\n"));
 			return;
 		}
 	}
