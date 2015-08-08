@@ -7,11 +7,11 @@ void disk_open( session_t *sesh, struct host *srchost, int direction ) {
 	srchost->diskout = fopen(filename, "a");
 }
 
-int disk_write( session_t *sesh, int direction, struct host* src, void* tcpdata, int len ) {
+int disk_write( session_t *sesh, int direction, struct host* src, void* packetdata, int len ) {
 	if( src->diskout == NULL ) {
 		disk_open( sesh, src, direction );
 	}
-	return fwrite( tcpdata, len, 1, src->diskout );
+	return fwrite( packetdata, len, 1, src->diskout );
 }
 
 void disk_close( struct host* src ) {

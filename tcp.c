@@ -313,7 +313,8 @@ void ll_insert(uint32_t tcplen, struct tcphdr *packet, struct host *desthost) {
 	desthost->bufcount++;
 }
 
-void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen ) {
+void decodeTCP( session_t *s, void *header, int tcplen ) {
+	struct tcphdr *tcpheader = header;
 	int direction;
 	// get session struct
 	s->src.port = ntohs(tcpheader->source);

@@ -4,12 +4,12 @@
 #include <netinet/if_ether.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-#include <netinet/tcp.h>
 #include "session.h"
 
 /* find *.{in,out} -size 0 -exec rm {} \;   */
 
-void decodeTCP( session_t *s, struct tcphdr* tcpheader, int tcplen );
+void decodeTCP( session_t *s, void *header, int tcplen );
+void decodeUDP(session_t *s, void *udpheader, uint16_t len);
 
 int readpcap( pcap_t * in ) {
 
@@ -49,30 +49,37 @@ int readpcap( pcap_t * in ) {
 				continue;
 		}
 
-		switch( ipheader->version ) {
-			case 4:
-				break;
-			default:
-				continue;
-		}
-
-		switch( ipheader->protocol ) {
-			case IPPROTO_TCP:
-				break;
-			default:
-				continue;
-		}
-
 		session_t s;
 		s.counter = 0;
-		s.src.ip.s_addr = ipheader->saddr;
-		s.dest.ip.s_addr = ipheader->daddr;
 		s.src.diskout = NULL;
 		s.dest.diskout = NULL;
 
-		struct tcphdr* tcpheader = (struct tcphdr*)(((unsigned char*)ipheader) + (ipheader->ihl * 4));
-		uint16_t tcplen = ntohs(ipheader->tot_len) - (ipheader->ihl * 4);
-		decodeTCP( &s, tcpheader, tcplen );
+		switch( ipheader->version ) {
+			case 4:
+				s.src.ip.s_addr = ipheader->saddr;
+				s.dest.ip.s_addr = ipheader->daddr;
+				break;
+			default:
+				continue;
+		}
+
+		void *l4header = ((unsigned char*)ipheader) + (ipheader->ihl * 4);
+		uint16_t l4len = ntohs(ipheader->tot_len) - (ipheader->ihl * 4);
+
+		switch( ipheader->protocol ) {
+			case IPPROTO_TCP: {
+				decodeTCP( &s, l4header, l4len );
+				break;
+			  }
+			case IPPROTO_UDP: {
+				decodeUDP( &s, l4header, l4len );
+				break;
+			  }
+			default:
+				continue;
+		}
+
+
 
 
 	}
