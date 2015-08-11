@@ -114,7 +114,7 @@ bool CheckWindow(uint32_t left, uint32_t seq, uint32_t right) {
 			return true;
 		}
 	} else {
-		if( !(left <= seq && seq < right ) ) {
+		if( !(right <= seq && seq < left ) ) {
 			return true;
 		}
 	}
