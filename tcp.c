@@ -378,7 +378,12 @@ void decodeTCP( session_t *s, void *header, int tcplen ) {
 				tcpheader = NULL;
 			}
 		} else {
-			DEBUG_PRINT((" ignored"));
+			uint32_t endOfWindow = srchost->seq + desthost->window;
+			if( CheckWindow( endOfWindow, curseq, endOfWindow + 2147483648 ) ) {
+				DEBUG_PRINT((" ignored: after window "));
+			} else {
+				DEBUG_PRINT((" ignored: before window "));
+			}
 			tcpheader = NULL;
 		}
 		DEBUG_PRINT(("\n"));
